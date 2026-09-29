@@ -11,7 +11,7 @@ const { STATUS, CATEGORIES } = require('../config/constants');
 const contentSchema = new mongoose.Schema({
   title: { type: String, trim: true, default: '' },
   summary: { type: String, trim: true, default: '' },
-  body: { type: String, default: '' },
+  body: { type: String, default: '' }, // plain text (no HTML); an empty line separates paragraphs
   imageUrl: { type: String, trim: true, default: '' },
 }, { _id: false });
 

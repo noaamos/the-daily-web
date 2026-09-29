@@ -1,7 +1,10 @@
 // Owner: member 1
-const todo = require('./todo');
+const mongoose = require('mongoose');
 const Article = require('../models/Article');
 const DeviceView = require('../models/DeviceView');
+const viewService = require('../services/viewService');
+const weatherService = require('../services/weatherService');
+const logger = require('../config/logger');
 const { CATEGORIES, CATEGORY_LABELS_HE, PAGE_SIZE } = require('../config/constants');
 
 const SORTS = {
@@ -15,9 +18,59 @@ exports.homePage = (req, res) => {
   res.render('public/home', { title: 'The Daily Web', categories: CATEGORIES, categoryLabels: CATEGORY_LABELS_HE });
 };
 
-// Must render the FULL article in the HTML (SEO) - load it here and pass it to the view, not via Ajax.
-// Remember to call viewService.recordView(...) on every visit.
-exports.articlePage = todo('articlePage');
+function notFoundPage(res) {
+  res.status(404).render('error', { title: 'הכתבה לא נמצאה', message: 'הכתבה שחיפשת לא קיימת או שעדיין לא פורסמה' });
+}
+
+// Body is stored as plain text; an empty line separates paragraphs. The view prints each paragraph
+// with <%= %> (escaped), so text written by a reporter can never inject HTML or scripts into the page.
+function toParagraphs(body) {
+  return String(body || '')
+    .split(/\r?\n\s*\r?\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+// Counting the visit must never break or slow down the page, so we don't await it and only log failures
+function trackVisit(articleId, deviceId) {
+  viewService.recordView(articleId, deviceId)
+    .catch((err) => logger.error(`recordView failed for ${articleId}: ${err.message}`));
+  // Remember that this device opened the article (for the "viewed / not viewed" filter). Upsert = at most one row.
+  DeviceView.updateOne({ deviceId, article: articleId }, { $setOnInsert: { deviceId, article: articleId } }, { upsert: true })
+    .catch((err) => logger.error(`DeviceView failed for ${articleId}: ${err.message}`));
+}
+
+// Server-rendered article page: the full text is in the HTML the server returns (search engines can read it
+// without running JavaScript). Only the comments are loaded later with Ajax.
+exports.articlePage = async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return notFoundPage(res);
+
+    // Only the published version is public - a draft or an update waiting for approval is never shown here
+    const article = await Article.findOne({ _id: req.params.id, published: { $ne: null } })
+      .select('published category author firstPublishedAt lastPublishedAt')
+      .populate('author', 'displayName')
+      .lean();
+    if (!article) return notFoundPage(res);
+
+    trackVisit(article._id, req.deviceId);
+
+    const wasUpdated = article.lastPublishedAt && article.lastPublishedAt > article.firstPublishedAt;
+    res.render('public/article', {
+      title: article.published.title + ' | The Daily Web',
+      description: article.published.summary,
+      image: article.published.imageUrl,
+      article,
+      content: article.published,
+      paragraphs: toParagraphs(article.published.body),
+      categoryLabel: CATEGORY_LABELS_HE[article.category],
+      authorName: article.author ? article.author.displayName : '',
+      updatedAt: wasUpdated ? article.lastPublishedAt : null,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
 // Escape characters that have a special meaning in a regex, so searching "C++" or "(" can't break the query
 function escapeRegex(text) {
@@ -100,4 +153,9 @@ exports.listArticles = async (req, res, next) => {
   }
 };
 
-exports.weather = todo('weather');
+exports.weather = async (req, res) => {
+  const data = await weatherService.getWeather(); // never throws
+  if (!data) return res.status(503).json({ error: 'מזג האוויר לא זמין כרגע' });
+  res.set('Cache-Control', 'public, max-age=300'); // browsers may reuse it for 5 minutes
+  res.json(data);
+};

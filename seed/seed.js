@@ -35,7 +35,7 @@ async function seed() {
     const content = {
       title: `כתבה לדוגמה מספר ${i}`,
       summary: `תקציר קצר של כתבה ${i}.`,
-      body: `<p>זהו התוכן המלא של כתבה מספר ${i}.</p><p>פסקה שנייה לדוגמה.</p>`,
+      body: `זהו התוכן המלא של כתבה מספר ${i}.\n\nפסקה שנייה לדוגמה.`, // plain text, empty line = new paragraph
       imageUrl: `https://picsum.photos/seed/dw${i}/800/450`,
     };
     const publishedAt = daysAgo(Math.floor(Math.random() * 30));

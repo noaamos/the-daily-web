@@ -85,3 +85,51 @@
   .card:hover { transform: none; }
   .card:hover .card-image { transform: none; }
 }
+
+/* ==== Article page ==== */
+.article-full {
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 1.5rem clamp(1rem, 4vw, 2.5rem) 2.5rem;
+}
+.article-full[data-category="politics"] { --cat-color: var(--cat-politics); --cat-soft: var(--cat-politics-soft); }
+.article-full[data-category="economy"]  { --cat-color: var(--cat-economy);  --cat-soft: var(--cat-economy-soft); }
+.article-full[data-category="sports"]   { --cat-color: var(--cat-sports);   --cat-soft: var(--cat-sports-soft); }
+.article-full[data-category="tech"]     { --cat-color: var(--cat-tech);     --cat-soft: var(--cat-tech-soft); }
+.article-full[data-category="culture"]  { --cat-color: var(--cat-culture);  --cat-soft: var(--cat-culture-soft); }
+.article-full[data-category="health"]   { --cat-color: var(--cat-health);   --cat-soft: var(--cat-health-soft); }
+
+.back-link { display: inline-block; font-size: 0.9rem; color: var(--muted); text-decoration: none; margin-bottom: 1.25rem; }
+.back-link:hover { color: var(--accent); }
+
+.article-header { display: flex; flex-direction: column; gap: 0.6rem; max-width: 70ch; }
+.article-category {
+  align-self: flex-start; background: var(--cat-soft, var(--bg)); color: var(--cat-color, var(--text));
+  font-size: 0.8rem; font-weight: 700; padding: 0.2rem 0.8rem; border-radius: 999px;
+}
+.article-title { font-size: clamp(1.7rem, 4vw, 2.5rem); line-height: 1.2; margin: 0; text-wrap: balance; }
+.article-summary { font-size: 1.2rem; color: var(--muted); margin: 0; }
+.article-meta { font-size: 0.9rem; color: var(--muted); margin: 0; }
+.article-author { font-weight: 700; color: var(--text); }
+.article-updated { color: var(--cat-color, var(--accent)); }
+
+.article-image { margin: 1.5rem 0; }
+.article-image img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); background: var(--border); }
+
+.article-body { max-width: 70ch; font-size: 1.1rem; line-height: 1.85; }
+.article-body p { margin: 0 0 1.2em; }
+
+.comments {
+  margin-top: 1.5rem; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 1.5rem clamp(1rem, 4vw, 2.5rem);
+}
+.comments h2 { margin: 0 0 1rem; font-size: 1.3rem; }
+
+/* ==== Weather widget (sidebar) ==== */
+.weather-main { display: flex; align-items: center; gap: 0.25rem; }
+.weather-icon { width: 64px; height: 64px; margin: -8px; }
+.weather-temp { font-size: 2.4rem; font-weight: 800; line-height: 1; }
+.weather-desc { margin: 0.25rem 0 0; font-weight: 500; }
+.weather-city { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.weather-details { list-style: none; padding: 0; margin: 0.75rem 0 0; display: grid; gap: 0.3rem; font-size: 0.9rem; }
+.weather-details li { display: flex; justify-content: space-between; }
+.weather-updated { margin: 0.75rem 0 0; font-size: 0.78rem; color: var(--muted); }
