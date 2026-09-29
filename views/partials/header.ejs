@@ -1,0 +1,13 @@
+<header class="site-header">
+  <a href="/" class="logo">The Daily Web</a>
+  <nav class="main-nav">
+    <a href="/">ראשי</a>
+    <% if (user && user.role === 'reporter') { %><a href="/reporter">הכתבות שלי</a><% } %>
+    <% if (user && user.role === 'editor') { %><a href="/editor">ניהול</a><a href="/editor/analytics">סטטיסטיקות</a><% } %>
+    <% if (user) { %>
+      <form action="/auth/logout" method="post" class="inline-form"><button type="submit">התנתקות (<%= user.displayName %>)</button></form>
+    <% } else { %>
+      <a href="/auth/login">כניסת צוות</a>
+    <% } %>
+  </nav>
+</header>

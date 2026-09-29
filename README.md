@@ -1,0 +1,113 @@
+# The Daily Web
+
+מערכת לניהול, עריכה ופרסום חדשות. פרויקט מסכם בקורס פיתוח אפליקציות אינטרנטיות.
+
+Node.js · Express · MongoDB/Mongoose · EJS · Vanilla JS (Ajax)
+
+## התקנה והרצה
+
+דרישות: Node.js 20 ומעלה, ו-MongoDB שרץ מקומית (או חיבור ל-MongoDB Atlas).
+
+```bash
+npm install
+cp .env.example .env      # ולמלא את הערכים
+npm run seed              # מוחק את כל הנתונים ויוצר נתוני דמה
+npm run dev               # מריץ עם טעינה מחדש אוטומטית
+```
+
+האתר יעלה בכתובת http://localhost:3000
+
+משתמשי דמה:
+
+| תפקיד | שם משתמש | סיסמה |
+|---|---|---|
+| עורך | `editor` | `editor123` |
+| כתב | `reporter1`, `reporter2`, `reporter3` | `reporter123` |
+
+## מבנה הפרויקט
+
+```
+app.js                  נקודת הכניסה: הגדרות, sessions, חיבור ה-routes
+config/                 חיבור ל-DB, לוגר, קבועים משותפים (סטטוסים, קטגוריות)
+models/                 סכמות Mongoose
+  Article.js            משותף: draft + published (ראו הסבר למטה)
+  User.js  Comment.js  ViewStat.js  DeviceView.js
+controllers/            הלוגיקה של כל אזור
+routes/                 קובץ routes לכל אזור
+middleware/             הרשאות, מזהה מכשיר, הגבלת תגובות, טיפול בשגיאות
+services/               לוגיקה משותפת: מעברי מצב, צפיות, מזג אוויר
+views/                  תבניות EJS, תיקייה לכל אזור + partials משותפים
+public/                 CSS ו-JS של צד הלקוח
+seed/seed.js            נתוני דמה
+logs/                   קובץ לוג (לא עולה לגיט)
+```
+
+## בעלות על קבצים
+
+| חבר צוות | אזור | קבצים |
+|---|---|---|
+| 1 | אתר ציבורי ומזג אוויר | `routes/public.js`, `controllers/publicController.js`, `services/weatherService.js`, `models/DeviceView.js`, `views/public/*`, `public/js/feed.js`, `public/js/weather.js` |
+| 2 | הזדהות, הרשאות, תגובות, משתמשים, seed | `routes/auth.js`, `routes/comments.js`, `routes/users.js`, `controllers/auth\|comment\|userController.js`, `middleware/*`, `models/User.js`, `models/Comment.js`, `views/auth/*`, `public/js/comments.js`, `seed/*` |
+| 3 | אזור כתב | `routes/reporter.js`, `controllers/reporterController.js`, `services/articleService.js`, `views/reporter/*`, `public/js/reporter.js` |
+| 4 | אזור עורך ו-Analytics | `routes/editor.js`, `controllers/editorController.js`, `services/viewService.js`, `models/ViewStat.js`, `views/editor/*`, `public/js/editor.js`, `public/js/analytics.js` |
+
+**קבצים משותפים** (`app.js`, `models/Article.js`, `config/constants.js`, `views/partials/*`, `public/css/main.css`): לפני שמשנים, כותבים בקבוצה, ומעלים את השינוי ב-PR קטן ונפרד.
+
+## איך בנויה כתבה
+
+לכל כתבה יש שתי גרסאות של תוכן:
+
+- `published`: מה שהציבור רואה. ריק (`null`) עד האישור הראשון.
+- `draft`: מה שהכתב עובד עליו (נשמר אוטומטית). כשעורך מאשר, הגרסה מועתקת ל-`published`.
+
+האתר הציבורי תמיד שולף כתבות לפי `published != null` ומציג את `published.*`, בלי קשר ל-`status`. ככה הגרסה הקודמת ממשיכה להופיע כל עוד עדכון ממתין לאישור.
+
+מעברי מצב מותרים (מוגדרים ב-`services/articleService.js`, והשרת חוסם כל מעבר אחר):
+
+| מ- | אל | מי |
+|---|---|---|
+| בהכנה (`draft`) | ממתינה (`pending`) | כתב |
+| הוחזרה (`returned`) | ממתינה (`pending`) | כתב |
+| ממתינה (`pending`) | פורסמה (`published`) | עורך |
+| ממתינה (`pending`) | הוחזרה (`returned`) + הערה | עורך |
+
+## API
+
+כל ה-API מחזיר JSON. שגיאות מוחזרות בפורמט `{ "error": "הודעה בעברית" }`.
+
+| Method | Path | תיאור | בעלים |
+|---|---|---|---|
+| GET | `/api/articles?page=&q=&category=&viewed=&sort=` | פיד. מחזיר `{ articles, hasMore }` | 1 |
+| GET | `/api/weather` | מזג אוויר (cache של 15 דקות) | 1 |
+| POST | `/auth/login` · `/auth/logout` | התחברות והתנתקות | 2 |
+| GET/POST | `/api/comments/:articleId` | רשימת תגובות / הוספת תגובה (עד 3 בדקה) | 2 |
+| PUT/DELETE | `/api/comments/:id` | עריכה ומחיקה (עורך) | 2 |
+| GET/POST/PUT/DELETE | `/api/users[/:id]` | ניהול משתמשים (עורך) | 2 |
+| GET/POST | `/reporter/api/articles` | הכתבות שלי / יצירת כתבה | 3 |
+| PUT | `/reporter/api/articles/:id/draft` | שמירה אוטומטית | 3 |
+| POST | `/reporter/api/articles/:id/submit` | הגשה לאישור | 3 |
+| GET | `/editor/api/articles?status=` | כל הכתבות | 4 |
+| PUT | `/editor/api/articles/:id/draft` | עריכה על ידי העורך | 4 |
+| POST | `/editor/api/articles/:id/approve` | אישור ופרסום | 4 |
+| POST | `/editor/api/articles/:id/return` | החזרה לתיקונים `{ note }` | 4 |
+| DELETE | `/editor/api/articles/:id` | מחיקה | 4 |
+| GET | `/editor/api/articles/:id/stats` | נתונים לגרף הצפיות | 4 |
+
+## עבודה עם Git
+
+```bash
+git checkout main && git pull
+git checkout -b feature/<אזור>-<מה>      # לדוגמה feature/reporter-autosave
+# ...עבודה, commits קטנים עם הודעות ברורות...
+git pull origin main                      # לפחות פעם ביום
+git push -u origin feature/<אזור>-<מה>
+# פותחים Pull Request, חבר אחר עובר ומאשר, ואז merge
+```
+
+- לא עושים push ישירות ל-`main`.
+- branch חי יום עד שלושה ימים, לא יותר.
+- אסור להעלות `.env`, סיסמאות או מפתחות API.
+
+## פיצ'רים
+
+<!-- TODO: לעדכן לפני ההגשה עם תיאור קצר של כל פיצ'ר שמומש -->

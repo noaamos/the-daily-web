@@ -1,0 +1,28 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<div class="layout">
+  <main>
+    <!-- Owner: member 1 -->
+    <form id="feed-controls" class="feed-controls" role="search">
+      <input type="search" id="q" name="q" placeholder="חיפוש כתבות...">
+      <select id="category" name="category">
+        <option value="">כל הקטגוריות</option>
+        <% categories.forEach(cat => { %><option value="<%= cat %>"><%= categoryLabels[cat] %></option><% }) %>
+      </select>
+      <select id="viewed" name="viewed">
+        <option value="all">הכול</option>
+        <option value="unviewed">לא נצפו</option>
+        <option value="viewed">נצפו</option>
+      </select>
+      <select id="sort" name="sort">
+        <option value="date">חדש ביותר</option>
+        <option value="popular">פופולרי</option>
+      </select>
+    </form>
+    <section id="feed" class="feed" aria-live="polite"></section>
+    <div id="feed-sentinel"></div>
+  </main>
+  <%- include('../partials/sidebar') %>
+</div>
+<script src="/js/feed.js" defer></script>
+<%- include('../partials/footer') %>

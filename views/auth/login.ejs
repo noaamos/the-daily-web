@@ -1,0 +1,15 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<main class="narrow">
+  <!-- Owner: member 2 -->
+  <h1>כניסת צוות</h1>
+  <% if (error) { %><p class="error" role="alert"><%= error %></p><% } %>
+  <form action="/auth/login" method="post" class="stack">
+    <label for="username">שם משתמש</label>
+    <input id="username" name="username" required autocomplete="username">
+    <label for="password">סיסמה</label>
+    <input id="password" name="password" type="password" required autocomplete="current-password">
+    <button type="submit">התחברות</button>
+  </form>
+</main>
+<%- include('../partials/footer') %>

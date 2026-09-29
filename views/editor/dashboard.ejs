@@ -1,0 +1,16 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<main>
+  <!-- Owner: member 4 -->
+  <h1>ניהול כתבות</h1>
+  <select id="status-filter">
+    <option value="">כל המצבים</option>
+    <option value="pending">ממתינות לאישור</option>
+    <option value="draft">בהכנה</option>
+    <option value="returned">הוחזרו לתיקונים</option>
+    <option value="published">פורסמו</option>
+  </select>
+  <section id="all-articles"></section>
+</main>
+<script src="/js/editor.js" defer></script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,67 @@
+// Owner: member 2
+// Starter seed so everyone has data from day one. Run: npm run seed  (DELETES existing data!)
+// TODO(member 2): grow to 500+ articles, comments, articles updated several times after publishing,
+//                 and view stats over time (coordinate the ViewStat format with member 4).
+require('dotenv').config();
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const User = require('../models/User');
+const Article = require('../models/Article');
+const Comment = require('../models/Comment');
+const ViewStat = require('../models/ViewStat');
+const DeviceView = require('../models/DeviceView');
+const { STATUS, CATEGORIES } = require('../config/constants');
+
+const ARTICLE_COUNT = 40;
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+
+async function seed() {
+  await mongoose.connect(process.env.MONGO_URI);
+  await Promise.all([User, Article, Comment, ViewStat, DeviceView].map((m) => m.deleteMany({})));
+
+  const hash = (p) => bcrypt.hash(p, 10);
+  const editor = await User.create({ username: 'editor', passwordHash: await hash('editor123'), displayName: 'עורכת ראשית', role: 'editor' });
+  const reporters = await User.insertMany([
+    { username: 'reporter1', passwordHash: await hash('reporter123'), displayName: 'דנה כהן', role: 'reporter' },
+    { username: 'reporter2', passwordHash: await hash('reporter123'), displayName: 'יוסי לוי', role: 'reporter' },
+    { username: 'reporter3', passwordHash: await hash('reporter123'), displayName: 'מיכל אברהם', role: 'reporter' },
+  ]);
+
+  const statuses = [STATUS.PUBLISHED, STATUS.PUBLISHED, STATUS.PUBLISHED, STATUS.DRAFT, STATUS.PENDING, STATUS.RETURNED];
+  const articles = [];
+  for (let i = 1; i <= ARTICLE_COUNT; i++) {
+    const status = pick(statuses);
+    const content = {
+      title: `כתבה לדוגמה מספר ${i}`,
+      summary: `תקציר קצר של כתבה ${i}.`,
+      body: `<p>זהו התוכן המלא של כתבה מספר ${i}.</p><p>פסקה שנייה לדוגמה.</p>`,
+      imageUrl: `https://picsum.photos/seed/dw${i}/800/450`,
+    };
+    const publishedAt = daysAgo(Math.floor(Math.random() * 30));
+    const isPublished = status === STATUS.PUBLISHED;
+    articles.push({
+      author: pick(reporters)._id,
+      category: pick(CATEGORIES),
+      status,
+      draft: content,
+      published: isPublished ? content : null,
+      editorNote: status === STATUS.RETURNED ? 'נא לחדד את הכותרת ולהוסיף מקור.' : '',
+      firstPublishedAt: isPublished ? publishedAt : null,
+      lastPublishedAt: isPublished ? publishedAt : null,
+      publishHistory: isPublished ? [{ at: publishedAt, by: editor._id }] : [],
+      viewCount: isPublished ? Math.floor(Math.random() * 5000) : 0,
+    });
+  }
+  await Article.insertMany(articles);
+  await Article.syncIndexes();
+
+  console.log(`Seeded: 1 editor, ${reporters.length} reporters, ${ARTICLE_COUNT} articles`);
+  console.log('Logins: editor / editor123, reporter1..3 / reporter123');
+  await mongoose.disconnect();
+}
+
+seed().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

@@ -1,0 +1,20 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<div class="layout">
+  <main>
+    <!-- Owner: member 1. The full article is rendered here on the server (SEO). Comments load via Ajax. -->
+    <article class="article-full">
+      <!-- TODO(member 1): title, author, category, date, image, body from article.published -->
+    </article>
+    <section id="comments" data-article-id="<%= article._id %>">
+      <h2>תגובות</h2>
+      <ul id="comment-list"></ul>
+      <form id="comment-form">
+        <!-- TODO(member 2) -->
+      </form>
+    </section>
+  </main>
+  <%- include('../partials/sidebar') %>
+</div>
+<script src="/js/comments.js" defer></script>
+<%- include('../partials/footer') %>
