@@ -1,0 +1,87 @@
+/* Owner: member 1 - public site (feed + article page) */
+
+/* ---- Search / filter bar ---- */
+.feed-controls {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+  background: var(--surface); padding: 0.75rem; border-radius: var(--radius); box-shadow: var(--shadow);
+  margin-bottom: 1.5rem;
+}
+.feed-controls input,
+.feed-controls select {
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+}
+.feed-controls input[type="search"] { flex: 1 1 220px; }
+.feed-controls select { cursor: pointer; }
+.feed-controls input:focus, .feed-controls select:focus { outline: none; border-color: var(--text); background: var(--surface); }
+
+/* ---- Feed grid ---- */
+.feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 1.25rem;
+}
+
+/* ---- Card ---- */
+.card {
+  background: var(--cat-soft, var(--surface));
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+.card-link { display: flex; flex-direction: column; height: 100%; text-decoration: none; color: inherit; }
+.card-link:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+
+.card-media { position: relative; overflow: hidden; background: var(--border); aspect-ratio: 16 / 9; }
+.card-image { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; }
+.card:hover .card-image { transform: scale(1.04); }
+
+.card-category {
+  position: absolute; top: 0.75rem; inset-inline-start: 0.75rem;
+  background: var(--cat-soft, var(--surface)); color: var(--cat-color, var(--text));
+  font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.7rem; border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(30, 42, 68, 0.15);
+}
+.card[data-category="politics"] { --cat-color: var(--cat-politics); --cat-soft: var(--cat-politics-soft); }
+.card[data-category="economy"]  { --cat-color: var(--cat-economy);  --cat-soft: var(--cat-economy-soft); }
+.card[data-category="sports"]   { --cat-color: var(--cat-sports);   --cat-soft: var(--cat-sports-soft); }
+.card[data-category="tech"]     { --cat-color: var(--cat-tech);     --cat-soft: var(--cat-tech-soft); }
+.card[data-category="culture"]  { --cat-color: var(--cat-culture);  --cat-soft: var(--cat-culture-soft); }
+.card[data-category="health"]   { --cat-color: var(--cat-health);   --cat-soft: var(--cat-health-soft); }
+
+.card-body { display: flex; flex-direction: column; gap: 0.4rem; padding: 1rem 1.1rem 1.1rem; flex: 1; }
+.card-title { font-size: 1.1rem; font-weight: 700; line-height: 1.35; margin: 0; text-wrap: balance; }
+.card:hover .card-title { color: var(--cat-color, var(--accent)); }
+.card-summary {
+  margin: 0; color: var(--muted); font-size: 0.95rem;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-meta { margin: auto 0 0; padding-top: 0.5rem; font-size: 0.82rem; color: var(--muted); }
+.card-author { font-weight: 500; color: var(--text); }
+
+/* The first article is the "main story": wider, image beside the text */
+@media (min-width: 700px) {
+  .feed > .card:first-child { grid-column: span 2; }
+  .feed > .card:first-child .card-link { flex-direction: row; }
+  .feed > .card:first-child .card-media { flex: 0 0 58%; aspect-ratio: auto; min-height: 280px; }
+  .feed > .card:first-child .card-body { justify-content: center; padding: 1.5rem; }
+  .feed > .card:first-child .card-title { font-size: 1.6rem; }
+}
+
+/* ---- Status line under the feed ---- */
+.feed-status { text-align: center; color: var(--muted); min-height: 1.6em; margin: 2rem 0; }
+.feed-status button {
+  margin-inline-start: 0.5rem; padding: 0.3rem 1rem; border-radius: 999px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .card-image { transition: none; }
+  .card:hover { transform: none; }
+  .card:hover .card-image { transform: none; }
+}

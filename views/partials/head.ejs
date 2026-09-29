@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= typeof title !== 'undefined' ? title : 'The Daily Web' %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap">
   <link rel="stylesheet" href="/css/main.css">
+  <%# Page-specific stylesheets: include('../partials/head', { styles: ['/css/public.css'] }) %>
+  <% (typeof styles !== 'undefined' ? styles : []).forEach((href) => { %><link rel="stylesheet" href="<%= href %>">
+  <% }) %>
 </head>
 <body>

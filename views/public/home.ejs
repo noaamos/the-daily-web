@@ -1,26 +1,50 @@
-<%- include('../partials/head') %>
+<%- include('../partials/head', { styles: ['/css/public.css'] }) %>
 <%- include('../partials/header') %>
 <div class="layout">
   <main>
     <!-- Owner: member 1 -->
+    <h1 class="visually-hidden">כתבות אחרונות</h1>
     <form id="feed-controls" class="feed-controls" role="search">
-      <input type="search" id="q" name="q" placeholder="חיפוש כתבות...">
+      <label for="q" class="visually-hidden">חיפוש כתבות</label>
+      <input type="search" id="q" name="q" placeholder="חיפוש כתבות..." maxlength="100">
+      <label for="category" class="visually-hidden">קטגוריה</label>
       <select id="category" name="category">
         <option value="">כל הקטגוריות</option>
         <% categories.forEach(cat => { %><option value="<%= cat %>"><%= categoryLabels[cat] %></option><% }) %>
       </select>
+      <label for="viewed" class="visually-hidden">נצפה או לא נצפה</label>
       <select id="viewed" name="viewed">
         <option value="all">הכול</option>
         <option value="unviewed">לא נצפו</option>
         <option value="viewed">נצפו</option>
       </select>
+      <label for="sort" class="visually-hidden">מיון</label>
       <select id="sort" name="sort">
         <option value="date">חדש ביותר</option>
         <option value="popular">פופולרי</option>
       </select>
     </form>
-    <section id="feed" class="feed" aria-live="polite"></section>
+
+    <section id="feed" class="feed"></section>
+    <p id="feed-status" class="feed-status" role="status"></p>
     <div id="feed-sentinel"></div>
+
+    <!-- One article card. feed.js clones it and fills the fields with textContent (never innerHTML - prevents XSS). -->
+    <template id="card-template">
+      <article class="card">
+        <a class="card-link">
+          <div class="card-media">
+            <img class="card-image" alt="" loading="lazy" width="800" height="450">
+            <span class="card-category"></span>
+          </div>
+          <div class="card-body">
+            <h2 class="card-title"></h2>
+            <p class="card-summary"></p>
+            <p class="card-meta"><span class="card-author"></span> · <time class="card-date"></time></p>
+          </div>
+        </a>
+      </article>
+    </template>
   </main>
   <%- include('../partials/sidebar') %>
 </div>
