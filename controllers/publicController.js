@@ -14,8 +14,57 @@ const SORTS = {
 const VIEWED_OPTIONS = ['all', 'viewed', 'unviewed'];
 const MAX_QUERY_LENGTH = 100;
 
-exports.homePage = (req, res) => {
-  res.render('public/home', { title: 'The Daily Web', categories: CATEGORIES, categoryLabels: CATEGORY_LABELS_HE });
+const PUBLISHED = { published: { $ne: null } };
+const CARD_FIELDS = 'published.title published.summary published.imageUrl category author firstPublishedAt viewCount';
+
+// The shape of one article in lists (feed API + home page front section)
+function toCard(a) {
+  return {
+    id: a._id,
+    title: a.published.title,
+    summary: a.published.summary,
+    imageUrl: a.published.imageUrl,
+    category: a.category,
+    categoryLabel: CATEGORY_LABELS_HE[a.category],
+    author: a.author ? a.author.displayName : '',
+    publishedAt: a.firstPublishedAt,
+    viewCount: a.viewCount,
+  };
+}
+
+function findCards(sort, limit) {
+  return Article.find(PUBLISHED).sort(sort).limit(limit).select(CARD_FIELDS).populate('author', 'displayName').lean();
+}
+
+// Home page. The "front page" section (featured, latest, most read) is rendered on the server;
+// the "all articles" feed below it is loaded with Ajax by feed.js.
+// Filters in the URL (/?category=sports) pre-select the controls, so category links and the Back button work.
+exports.homePage = async (req, res, next) => {
+  try {
+    const initial = {
+      q: String(req.query.q || '').slice(0, MAX_QUERY_LENGTH),
+      category: CATEGORIES.includes(req.query.category) ? req.query.category : '',
+      viewed: VIEWED_OPTIONS.includes(req.query.viewed) ? req.query.viewed : 'all',
+      sort: SORTS[req.query.sort] ? req.query.sort : 'date',
+    };
+    const [latest, mostRead] = await Promise.all([findCards(SORTS.date, 9), findCards(SORTS.popular, 5)]);
+    const cards = latest.map(toCard);
+
+    res.render('public/home', {
+      title: 'The Daily Web',
+      description: 'The Daily Web - חדשות, כלכלה, ספורט, טכנולוגיה ותרבות',
+      initial,
+      showFront: !initial.q && !initial.category && initial.viewed === 'all',
+      front: {
+        featured: cards[0],
+        strip: cards.slice(1, 5),
+        latest: cards.slice(5, 9),
+        mostRead: mostRead.map(toCard),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
 };
 
 function notFoundPage(res) {
@@ -113,10 +162,7 @@ exports.listArticles = async (req, res, next) => {
   try {
     const { page, q, category, viewed, sort, snapshot } = parseFeedQuery(req.query);
 
-    const filter = {
-      published: { $ne: null },
-      firstPublishedAt: { $lte: snapshot },
-    };
+    const filter = { ...PUBLISHED, firstPublishedAt: { $lte: snapshot } };
     if (q) filter['published.title'] = { $regex: escapeRegex(q), $options: 'i' };
     if (category) filter.category = category;
 
@@ -130,22 +176,20 @@ exports.listArticles = async (req, res, next) => {
       .sort(SORTS[sort])
       .skip((page - 1) * PAGE_SIZE)
       .limit(PAGE_SIZE + 1)
-      .select('published.title published.summary published.imageUrl category author firstPublishedAt viewCount')
+      .select(CARD_FIELDS)
       .populate('author', 'displayName')
       .lean();
 
     const hasMore = docs.length > PAGE_SIZE;
-    const articles = docs.slice(0, PAGE_SIZE).map((a) => ({
-      id: a._id,
-      title: a.published.title,
-      summary: a.published.summary,
-      imageUrl: a.published.imageUrl,
-      category: a.category,
-      categoryLabel: CATEGORY_LABELS_HE[a.category],
-      author: a.author ? a.author.displayName : '',
-      publishedAt: a.firstPublishedAt,
-      viewCount: a.viewCount,
-    }));
+    const pageDocs = docs.slice(0, PAGE_SIZE);
+
+    // Which of THESE articles has this device already opened? (checks only this page, not the whole history)
+    const seenOnPage = await DeviceView.find({ deviceId: req.deviceId, article: { $in: pageDocs.map((a) => a._id) } })
+      .select('article')
+      .lean();
+    const seenSet = new Set(seenOnPage.map((v) => String(v.article)));
+
+    const articles = pageDocs.map((a) => ({ ...toCard(a), viewed: seenSet.has(String(a._id)) }));
 
     res.json({ articles, hasMore, page, snapshot: snapshot.toISOString() });
   } catch (err) {

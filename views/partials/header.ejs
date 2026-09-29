@@ -1,16 +1,33 @@
+<%
+  // navActive: '' = home, a category key = that category, undefined = nothing highlighted
+  const active = typeof navActive !== 'undefined' ? navActive : null;
+%>
 <header class="site-header">
-  <div class="header-inner">
-    <a href="/" class="logo">The Daily Web<span class="logo-dot" aria-hidden="true"></span></a>
-    <span class="header-date"><%= new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) %></span>
-    <nav class="main-nav" aria-label="ניווט ראשי">
-      <a href="/">ראשי</a>
-      <% if (user && user.role === 'reporter') { %><a href="/reporter">הכתבות שלי</a><% } %>
-      <% if (user && user.role === 'editor') { %><a href="/editor">ניהול</a><a href="/editor/analytics">סטטיסטיקות</a><% } %>
-      <% if (user) { %>
-        <form action="/auth/logout" method="post" class="inline-form"><button type="submit" class="nav-button">התנתקות (<%= user.displayName %>)</button></form>
-      <% } else { %>
-        <a href="/auth/login" class="nav-button">כניסת צוות</a>
+  <div class="masthead">
+    <span class="masthead-date"><%= new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) %></span>
+    <a href="/" class="logo">The Daily Web</a>
+    <div class="masthead-actions">
+      <% if (user && user.role === 'reporter') { %><a href="/reporter" class="masthead-link">הכתבות שלי</a><% } %>
+      <% if (user && user.role === 'editor') { %>
+        <a href="/editor" class="masthead-link">ניהול</a>
+        <a href="/editor/analytics" class="masthead-link">סטטיסטיקות</a>
       <% } %>
-    </nav>
+      <% if (user) { %>
+        <form action="/auth/logout" method="post" class="inline-form">
+          <button type="submit" class="btn-outline">התנתקות (<%= user.displayName %>)</button>
+        </form>
+      <% } else { %>
+        <a href="/auth/login" class="btn-accent">כניסת צוות</a>
+      <% } %>
+    </div>
   </div>
+
+  <nav class="category-nav" aria-label="קטגוריות">
+    <div class="category-nav-inner">
+      <a href="/" data-category="" class="<%= active === '' ? 'active' : '' %>">ראשי</a>
+      <% categories.forEach((cat) => { %>
+        <a href="/?category=<%= cat %>" data-category="<%= cat %>" class="<%= active === cat ? 'active' : '' %>"><%= categoryLabels[cat] %></a>
+      <% }) %>
+    </div>
+  </nav>
 </header>

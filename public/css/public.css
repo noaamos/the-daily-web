@@ -1,128 +1,153 @@
-/* Owner: member 1 - public site (feed + article page) */
+/* Owner: member 1 - public site (home page, feed, article page, weather) */
 
-/* ---- Search / filter bar ---- */
+/* ==== Front page (top of the home page, inside the main column) ==== */
+.front { margin-bottom: 2rem; }
+
+/* Strip of 4 small headlines, each with a thin line in its category color */
+.front-strip {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
+  padding-bottom: 1.25rem; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border);
+}
+.strip-item {
+  display: flex; gap: 0.6rem; align-items: center; text-decoration: none;
+  padding-top: 0.6rem; border-top: 3px solid var(--cat-color, var(--border));
+}
+.strip-item img { flex: 0 0 64px; width: 64px; height: 48px; object-fit: cover; border-radius: 3px; background: var(--border); }
+.strip-title { font-size: 0.95rem; font-weight: 500; line-height: 1.35; }
+.strip-item:hover .strip-title { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Featured article (wide) + latest news list. In RTL the first grid column is on the right. */
+.front-main { display: grid; grid-template-columns: 2fr 1fr; gap: 1.75rem; }
+
+.front-featured a { text-decoration: none; display: flex; flex-direction: column; gap: 0.5rem; }
+.front-featured img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 4px; background: var(--border); }
+.featured-title { font-size: clamp(1.6rem, 2.8vw, 2.3rem); line-height: 1.2; margin: 0; }
+.front-featured a:hover .featured-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+.featured-summary { color: var(--muted); margin: 0.5rem 0 0.4rem; font-size: 1.05rem; }
+
+.list-item {
+  display: flex; flex-direction: column; gap: 0.15rem; text-decoration: none;
+  padding: 0.75rem 0; border-bottom: 1px solid var(--border);
+}
+.list-item:last-child { border-bottom: none; }
+.list-item img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 4px; background: var(--border); margin-bottom: 0.4rem; }
+.list-item-lead { padding-top: 0; }
+.list-title { font-size: 1rem; font-weight: 500; line-height: 1.4; }
+.list-item-lead .list-title { font-family: var(--font-display); font-size: 1.2rem; font-weight: 400; line-height: 1.3; }
+.list-item:hover .list-title, .trend-item:hover .list-title { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Colored category tag (pastel background, text in the category color) */
+.cat-pill {
+  align-self: flex-start; background: var(--cat-soft, var(--surface-soft)); color: var(--cat-color, var(--text));
+  font-size: 0.78rem; font-weight: 700; padding: 0.1rem 0.7rem; border-radius: 999px;
+}
+
+@media (max-width: 1100px) {
+  .front-strip { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 700px) {
+  .front-strip { grid-template-columns: 1fr; gap: 0.75rem; }
+  .front-main { grid-template-columns: 1fr; }
+}
+
+/* ==== Sidebar: most read ==== */
+.trending h2 { margin-bottom: 0.25rem; }
+.trend-item {
+  display: flex; gap: 0.75rem; align-items: flex-start; text-decoration: none;
+  padding: 0.7rem 0; border-bottom: 1px solid var(--border);
+}
+.trend-item:last-child { border-bottom: none; padding-bottom: 0; }
+.trend-rank {
+  flex: 0 0 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--cat-soft, var(--surface)); color: var(--cat-color, var(--text));
+  font-family: var(--font-display); font-size: 1.05rem;
+}
+.trend-text { display: flex; flex-direction: column; gap: 0.1rem; }
+.trend-item .list-title { font-size: 0.95rem; }
+
+/* ==== Search / filter bar ==== */
 .feed-controls {
   display: flex; flex-wrap: wrap; gap: 0.5rem;
-  background: var(--surface); padding: 0.75rem; border-radius: var(--radius); box-shadow: var(--shadow);
+  background: var(--surface-soft); padding: 0.75rem; border-radius: var(--radius);
   margin-bottom: 1.5rem;
 }
 .feed-controls input,
 .feed-controls select {
-  padding: 0.55rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--text);
+  padding: 0.5rem 0.8rem; border: 1px solid var(--border); border-radius: 4px; background: #fff; color: var(--text);
 }
 .feed-controls input[type="search"] { flex: 1 1 220px; }
 .feed-controls select { cursor: pointer; }
-.feed-controls input:focus, .feed-controls select:focus { outline: none; border-color: var(--text); background: var(--surface); }
+.feed-controls input:focus, .feed-controls select:focus { outline: none; border-color: var(--text); }
 
-/* ---- Feed grid ---- */
-.feed {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
-  gap: 1.25rem;
-}
+/* ==== Feed grid ==== */
+.feed { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 2rem 1.5rem; }
 
-/* ---- Card ---- */
 .card {
-  background: var(--cat-soft, var(--surface));
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: var(--shadow);
+  display: flex; flex-direction: column;
+  background: var(--cat-soft, var(--surface-soft)); border-radius: 8px; overflow: hidden;
   transition: box-shadow 0.2s, transform 0.2s;
 }
-.card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+.card:hover { box-shadow: 0 10px 24px rgba(26, 34, 51, 0.12); transform: translateY(-2px); }
 .card-link { display: flex; flex-direction: column; height: 100%; text-decoration: none; color: inherit; }
-.card-link:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
-
-.card-media { position: relative; overflow: hidden; background: var(--border); aspect-ratio: 16 / 9; }
+.card-link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.card-media { position: relative; overflow: hidden; background: var(--border); aspect-ratio: 16 / 10; }
 .card-image { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; }
 .card:hover .card-image { transform: scale(1.04); }
-
-.card-category {
-  position: absolute; top: 0.75rem; inset-inline-start: 0.75rem;
-  background: var(--cat-soft, var(--surface)); color: var(--cat-color, var(--text));
-  font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.7rem; border-radius: 999px;
-  box-shadow: 0 1px 3px rgba(30, 42, 68, 0.15);
-}
-.card[data-category="politics"] { --cat-color: var(--cat-politics); --cat-soft: var(--cat-politics-soft); }
-.card[data-category="economy"]  { --cat-color: var(--cat-economy);  --cat-soft: var(--cat-economy-soft); }
-.card[data-category="sports"]   { --cat-color: var(--cat-sports);   --cat-soft: var(--cat-sports-soft); }
-.card[data-category="tech"]     { --cat-color: var(--cat-tech);     --cat-soft: var(--cat-tech-soft); }
-.card[data-category="culture"]  { --cat-color: var(--cat-culture);  --cat-soft: var(--cat-culture-soft); }
-.card[data-category="health"]   { --cat-color: var(--cat-health);   --cat-soft: var(--cat-health-soft); }
-
-.card-body { display: flex; flex-direction: column; gap: 0.4rem; padding: 1rem 1.1rem 1.1rem; flex: 1; }
-.card-title { font-size: 1.1rem; font-weight: 700; line-height: 1.35; margin: 0; text-wrap: balance; }
-.card:hover .card-title { color: var(--cat-color, var(--accent)); }
+.card-body { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.8rem 1rem 1rem; flex: 1; }
+.card-title { font-size: 1.2rem; line-height: 1.3; margin: 0; }
+.card:hover .card-title { color: var(--cat-color, var(--text)); }
 .card-summary {
-  margin: 0; color: var(--muted); font-size: 0.95rem;
+  margin: 0; color: var(--muted); font-size: 0.92rem;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
-.card-meta { margin: auto 0 0; padding-top: 0.5rem; font-size: 0.82rem; color: var(--muted); }
+.card .item-meta { margin-top: auto; padding-top: 0.35rem; }
 .card-author { font-weight: 500; color: var(--text); }
 
-/* The first article is the "main story": wider, image beside the text */
-@media (min-width: 700px) {
-  .feed > .card:first-child { grid-column: span 2; }
-  .feed > .card:first-child .card-link { flex-direction: row; }
-  .feed > .card:first-child .card-media { flex: 0 0 58%; aspect-ratio: auto; min-height: 280px; }
-  .feed > .card:first-child .card-body { justify-content: center; padding: 1.5rem; }
-  .feed > .card:first-child .card-title { font-size: 1.6rem; }
+/* Articles this device already opened: "נקרא" badge + slightly faded */
+.card-read-badge {
+  position: absolute; top: 0.6rem; inset-inline-end: 0.6rem;
+  background: rgba(26, 34, 51, 0.78); color: #fff;
+  font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.55rem; border-radius: 999px;
 }
+.card.is-read .card-image { filter: saturate(0.4); opacity: 0.75; }
+.card.is-read .card-title { color: var(--muted); }
 
-/* ---- Status line under the feed ---- */
+/* ==== Status line under the feed ==== */
 .feed-status { text-align: center; color: var(--muted); min-height: 1.6em; margin: 2rem 0; }
 .feed-status button {
-  margin-inline-start: 0.5rem; padding: 0.3rem 1rem; border-radius: 999px;
+  margin-inline-start: 0.5rem; padding: 0.3rem 1rem; border-radius: 4px;
   border: 1px solid var(--border); background: #fff; cursor: pointer;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .card, .card-image { transition: none; }
-  .card:hover { transform: none; }
-  .card:hover .card-image { transform: none; }
+  .card:hover, .card:hover .card-image { transform: none; }
 }
 
 /* ==== Article page ==== */
-.article-full {
-  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
-  padding: 1.5rem clamp(1rem, 4vw, 2.5rem) 2.5rem;
-}
-.article-full[data-category="politics"] { --cat-color: var(--cat-politics); --cat-soft: var(--cat-politics-soft); }
-.article-full[data-category="economy"]  { --cat-color: var(--cat-economy);  --cat-soft: var(--cat-economy-soft); }
-.article-full[data-category="sports"]   { --cat-color: var(--cat-sports);   --cat-soft: var(--cat-sports-soft); }
-.article-full[data-category="tech"]     { --cat-color: var(--cat-tech);     --cat-soft: var(--cat-tech-soft); }
-.article-full[data-category="culture"]  { --cat-color: var(--cat-culture);  --cat-soft: var(--cat-culture-soft); }
-.article-full[data-category="health"]   { --cat-color: var(--cat-health);   --cat-soft: var(--cat-health-soft); }
-
+.article-full { padding-bottom: 1rem; }
 .back-link { display: inline-block; font-size: 0.9rem; color: var(--muted); text-decoration: none; margin-bottom: 1.25rem; }
 .back-link:hover { color: var(--accent); }
 
 .article-header { display: flex; flex-direction: column; gap: 0.6rem; max-width: 70ch; }
 .article-category {
-  align-self: flex-start; background: var(--cat-soft, var(--bg)); color: var(--cat-color, var(--text));
-  font-size: 0.8rem; font-weight: 700; padding: 0.2rem 0.8rem; border-radius: 999px;
+  align-self: flex-start; background: var(--cat-soft, var(--surface-soft)); color: var(--cat-color, var(--text));
+  font-size: 0.8rem; font-weight: 700; padding: 0.15rem 0.75rem; border-radius: 3px;
 }
-.article-title { font-size: clamp(1.7rem, 4vw, 2.5rem); line-height: 1.2; margin: 0; text-wrap: balance; }
-.article-summary { font-size: 1.2rem; color: var(--muted); margin: 0; }
-.article-meta { font-size: 0.9rem; color: var(--muted); margin: 0; }
+.article-title { font-size: clamp(1.9rem, 4.5vw, 2.9rem); line-height: 1.15; margin: 0; }
+.article-summary { font-size: 1.25rem; color: var(--muted); margin: 0; line-height: 1.5; }
+.article-meta { font-size: 0.9rem; color: var(--muted); margin: 0; padding-top: 0.6rem; border-top: 1px solid var(--border); }
 .article-author { font-weight: 700; color: var(--text); }
 .article-updated { color: var(--cat-color, var(--accent)); }
 
 .article-image { margin: 1.5rem 0; }
-.article-image img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); background: var(--border); }
+.article-image img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 3px; background: var(--border); }
 
-.article-body { max-width: 70ch; font-size: 1.1rem; line-height: 1.85; }
+.article-body { max-width: 70ch; font-size: 1.15rem; line-height: 1.9; }
 .article-body p { margin: 0 0 1.2em; }
 
-.comments {
-  margin-top: 1.5rem; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
-  padding: 1.5rem clamp(1rem, 4vw, 2.5rem);
-}
-.comments h2 { margin: 0 0 1rem; font-size: 1.3rem; }
+.comments { margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid var(--rule); }
+.comments h2 { margin: 0 0 1rem; font-size: 1.4rem; }
 
 /* ==== Weather widget (sidebar) ==== */
 .weather-main { display: flex; align-items: center; gap: 0.25rem; }

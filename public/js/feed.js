@@ -13,6 +13,9 @@
     viewed: document.getElementById('viewed'),
     sort: document.getElementById('sort'),
   };
+  const frontEl = document.getElementById('front');
+  const feedTitle = document.getElementById('feed-title');
+  const navLinks = document.querySelectorAll('.category-nav a[data-category]');
 
   const SEARCH_DELAY_MS = 350;
   const dateFormat = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -67,6 +70,13 @@
   function renderCard(article) {
     const card = template.content.firstElementChild.cloneNode(true);
     card.dataset.category = article.category; // CSS picks the tag color from this
+    const markRead = () => {
+      card.classList.add('is-read');
+      card.querySelector('.card-read-badge').hidden = false;
+    };
+    if (article.viewed) markRead();
+    // Mark right away on click, so it's already marked when the user comes back with the Back button
+    card.querySelector('.card-link').addEventListener('click', markRead);
     card.querySelector('.card-link').href = '/articles/' + article.id;
     const img = card.querySelector('.card-image');
     if (article.imageUrl) img.src = article.imageUrl;
@@ -130,8 +140,27 @@
     statusEl.append(' ', btn);
   }
 
+  // Keep the rest of the page in sync with the filters:
+  //  - the URL (/?category=sports&q=...) so Back / refresh / sharing a link keep the same results
+  //  - the "front page" section is shown only when no search or filter is active
+  //  - the active category in the category bar
+  function syncPage() {
+    const filters = currentFilters();
+    const params = new URLSearchParams();
+    if (filters.q) params.set('q', filters.q);
+    if (filters.category) params.set('category', filters.category);
+    if (filters.viewed !== 'all') params.set('viewed', filters.viewed);
+    if (filters.sort !== 'date') params.set('sort', filters.sort);
+    const query = params.toString();
+    history.replaceState(null, '', query ? '/?' + query : '/');
+
+    if (frontEl) frontEl.hidden = Boolean(filters.q || filters.category || filters.viewed !== 'all');
+    navLinks.forEach((link) => link.classList.toggle('active', link.dataset.category === filters.category));
+  }
+
   // Start over from page 1 - called whenever search / filter / sort changes
   function resetFeed() {
+    syncPage();
     if (state.controller) state.controller.abort();
     state.page = 0;
     state.hasMore = true;
@@ -164,6 +193,23 @@
     e.preventDefault();
     clearTimeout(searchTimer);
     resetFeed();
+  });
+
+  // Category bar: on the home page, filter without reloading (on other pages the links navigate normally)
+  navLinks.forEach((link) => {
+    link.addEventListener('click', (e) => {
+      if (e.ctrlKey || e.metaKey || e.shiftKey) return; // let "open in new tab" work
+      e.preventDefault();
+      inputs.category.value = link.dataset.category;
+      resetFeed();
+      if (link.dataset.category) feedTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+
+  // Server-rendered dates in the front section: show "לפני 3 שעות" for recent articles
+  document.querySelectorAll('time[data-relative]').forEach((time) => {
+    time.textContent = formatPublished(new Date(time.dateTime));
   });
 
   loadNextPage();
