@@ -5,6 +5,7 @@ const session = require('express-session');
 const MongoStore = require('connect-mongo');
 
 const connectDB = require('./config/db');
+const { CATEGORIES, CATEGORY_LABELS_HE } = require('./config/constants');
 const logger = require('./config/logger');
 const { loadUser } = require('./middleware/auth');
 const deviceId = require('./middleware/deviceId');
@@ -15,6 +16,8 @@ const app = express();
 // ---- View engine ----
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+app.locals.categories = CATEGORIES;            // available in every view (category bar in the header)
+app.locals.categoryLabels = CATEGORY_LABELS_HE;
 
 // ---- Body parsing & static files ----
 app.use(express.json());

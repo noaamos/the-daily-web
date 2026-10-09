@@ -1,28 +1,116 @@
-<%- include('../partials/head') %>
-<%- include('../partials/header') %>
+<%- include('../partials/head', { styles: ['/css/public.css'] }) %>
+<%- include('../partials/header', { navActive: initial.category }) %>
+<%
+  // Full date on the server; feed.js replaces it with "לפני 3 שעות" for recent articles (data-relative)
+  const fullDate = (d) => new Date(d).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
+  const iso = (d) => new Date(d).toISOString();
+%>
+<h1 class="visually-hidden">The Daily Web - חדשות</h1>
+
 <div class="layout">
   <main>
-    <!-- Owner: member 1 -->
+    <% if (front.featured) { %>
+    <!-- Owner: member 1. "Front page": rendered on the server, hidden while a search / filter is active -->
+    <section id="front" class="front" aria-label="כתבות מובילות" <%= showFront ? '' : 'hidden' %>>
+      <div class="front-strip">
+        <% front.strip.forEach((a) => { %>
+          <a href="/articles/<%= a.id %>" class="strip-item" data-category="<%= a.category %>">
+            <% if (a.imageUrl) { %><img src="<%= a.imageUrl %>" alt="" width="96" height="72" loading="lazy"><% } %>
+            <span class="strip-title"><%= a.title %></span>
+          </a>
+        <% }) %>
+      </div>
+
+      <div class="front-main">
+        <article class="front-featured" data-category="<%= front.featured.category %>">
+          <h2 class="section-label">כתבה ראשית</h2>
+          <a href="/articles/<%= front.featured.id %>">
+            <% if (front.featured.imageUrl) { %><img src="<%= front.featured.imageUrl %>" alt="" width="800" height="450"><% } %>
+            <span class="cat-pill"><%= front.featured.categoryLabel %></span>
+            <h3 class="featured-title"><%= front.featured.title %></h3>
+          </a>
+          <p class="featured-summary"><%= front.featured.summary %></p>
+          <p class="item-meta"><%= front.featured.author %> · <time datetime="<%= iso(front.featured.publishedAt) %>" data-relative><%= fullDate(front.featured.publishedAt) %></time></p>
+        </article>
+
+        <section class="front-latest" aria-labelledby="latest-title">
+          <h2 class="section-label" id="latest-title">חדשות אחרונות</h2>
+          <% front.latest.forEach((a, i) => { %>
+            <a href="/articles/<%= a.id %>" class="list-item <%= i === 0 ? 'list-item-lead' : '' %>" data-category="<%= a.category %>">
+              <% if (i === 0 && a.imageUrl) { %><img src="<%= a.imageUrl %>" alt="" width="400" height="225" loading="lazy"><% } %>
+              <span class="cat-label"><%= a.categoryLabel %></span>
+              <span class="list-title"><%= a.title %></span>
+              <time class="item-meta" datetime="<%= iso(a.publishedAt) %>" data-relative><%= fullDate(a.publishedAt) %></time>
+            </a>
+          <% }) %>
+        </section>
+      </div>
+    </section>
+    <% } %>
+
+    <h2 class="section-title" id="feed-title">כל הכתבות</h2>
     <form id="feed-controls" class="feed-controls" role="search">
-      <input type="search" id="q" name="q" placeholder="חיפוש כתבות...">
+      <label for="q" class="visually-hidden">חיפוש כתבות</label>
+      <input type="search" id="q" name="q" placeholder="חיפוש כתבות..." maxlength="100" value="<%= initial.q %>">
+      <label for="category" class="visually-hidden">קטגוריה</label>
       <select id="category" name="category">
         <option value="">כל הקטגוריות</option>
-        <% categories.forEach(cat => { %><option value="<%= cat %>"><%= categoryLabels[cat] %></option><% }) %>
+        <% categories.forEach(cat => { %><option value="<%= cat %>" <%= initial.category === cat ? 'selected' : '' %>><%= categoryLabels[cat] %></option><% }) %>
       </select>
+      <label for="viewed" class="visually-hidden">נצפה או לא נצפה</label>
       <select id="viewed" name="viewed">
         <option value="all">הכול</option>
-        <option value="unviewed">לא נצפו</option>
-        <option value="viewed">נצפו</option>
+        <option value="unviewed" <%= initial.viewed === 'unviewed' ? 'selected' : '' %>>לא נצפו</option>
+        <option value="viewed" <%= initial.viewed === 'viewed' ? 'selected' : '' %>>נצפו</option>
       </select>
+      <label for="sort" class="visually-hidden">מיון</label>
       <select id="sort" name="sort">
         <option value="date">חדש ביותר</option>
-        <option value="popular">פופולרי</option>
+        <option value="popular" <%= initial.sort === 'popular' ? 'selected' : '' %>>פופולרי</option>
       </select>
     </form>
-    <section id="feed" class="feed" aria-live="polite"></section>
+
+    <section id="feed" class="feed" aria-labelledby="feed-title"></section>
+    <p id="feed-status" class="feed-status" role="status"></p>
     <div id="feed-sentinel"></div>
+
+    <!-- One article card. feed.js clones it and fills the fields with textContent (never innerHTML - prevents XSS). -->
+    <template id="card-template">
+      <article class="card">
+        <a class="card-link">
+          <div class="card-media">
+            <img class="card-image" alt="" loading="lazy" width="800" height="450">
+            <span class="card-read-badge" hidden>✓ נקרא</span>
+          </div>
+          <div class="card-body">
+            <span class="cat-label card-category"></span>
+            <h3 class="card-title"></h3>
+            <p class="card-summary"></p>
+            <p class="item-meta"><span class="card-author"></span> · <time class="card-date"></time></p>
+          </div>
+        </a>
+      </article>
+    </template>
   </main>
-  <%- include('../partials/sidebar') %>
+
+  <!-- Sidebar starts at the top of the page: weather first, then the most read articles -->
+  <aside class="sidebar">
+    <%- include('../partials/weather') %>
+    <% if (front.mostRead.length) { %>
+    <section class="trending" aria-labelledby="trending-title">
+      <h2 id="trending-title">הכי נקראות</h2>
+      <% front.mostRead.forEach((a, i) => { %>
+        <a href="/articles/<%= a.id %>" class="trend-item" data-category="<%= a.category %>">
+          <span class="trend-rank"><%= i + 1 %></span>
+          <span class="trend-text">
+            <span class="cat-label"><%= a.categoryLabel %></span>
+            <span class="list-title"><%= a.title %></span>
+          </span>
+        </a>
+      <% }) %>
+    </section>
+    <% } %>
+  </aside>
 </div>
 <script src="/js/feed.js" defer></script>
 <%- include('../partials/footer') %>

@@ -1,16 +1,205 @@
 // Owner: member 1
-const todo = require('./todo');
-const { CATEGORIES, CATEGORY_LABELS_HE } = require('../config/constants');
+const mongoose = require('mongoose');
+const Article = require('../models/Article');
+const DeviceView = require('../models/DeviceView');
+const viewService = require('../services/viewService');
+const weatherService = require('../services/weatherService');
+const logger = require('../config/logger');
+const { CATEGORIES, CATEGORY_LABELS_HE, PAGE_SIZE } = require('../config/constants');
 
-exports.homePage = (req, res) => {
-  res.render('public/home', { title: 'The Daily Web', categories: CATEGORIES, categoryLabels: CATEGORY_LABELS_HE });
+const SORTS = {
+  date: { firstPublishedAt: -1, _id: -1 },
+  popular: { viewCount: -1, _id: -1 },
+};
+const VIEWED_OPTIONS = ['all', 'viewed', 'unviewed'];
+const MAX_QUERY_LENGTH = 100;
+
+const PUBLISHED = { published: { $ne: null } };
+const CARD_FIELDS = 'published.title published.summary published.imageUrl category author firstPublishedAt viewCount';
+
+// The shape of one article in lists (feed API + home page front section)
+function toCard(a) {
+  return {
+    id: a._id,
+    title: a.published.title,
+    summary: a.published.summary,
+    imageUrl: a.published.imageUrl,
+    category: a.category,
+    categoryLabel: CATEGORY_LABELS_HE[a.category],
+    author: a.author ? a.author.displayName : '',
+    publishedAt: a.firstPublishedAt,
+    viewCount: a.viewCount,
+  };
+}
+
+function findCards(sort, limit) {
+  return Article.find(PUBLISHED).sort(sort).limit(limit).select(CARD_FIELDS).populate('author', 'displayName').lean();
+}
+
+// Home page. The "front page" section (featured, latest, most read) is rendered on the server;
+// the "all articles" feed below it is loaded with Ajax by feed.js.
+// Filters in the URL (/?category=sports) pre-select the controls, so category links and the Back button work.
+exports.homePage = async (req, res, next) => {
+  try {
+    const initial = {
+      q: String(req.query.q || '').slice(0, MAX_QUERY_LENGTH),
+      category: CATEGORIES.includes(req.query.category) ? req.query.category : '',
+      viewed: VIEWED_OPTIONS.includes(req.query.viewed) ? req.query.viewed : 'all',
+      sort: SORTS[req.query.sort] ? req.query.sort : 'date',
+    };
+    const [latest, mostRead] = await Promise.all([findCards(SORTS.date, 9), findCards(SORTS.popular, 5)]);
+    const cards = latest.map(toCard);
+
+    res.render('public/home', {
+      title: 'The Daily Web',
+      description: 'The Daily Web - חדשות, כלכלה, ספורט, טכנולוגיה ותרבות',
+      initial,
+      showFront: !initial.q && !initial.category && initial.viewed === 'all',
+      front: {
+        featured: cards[0],
+        strip: cards.slice(1, 5),
+        latest: cards.slice(5, 9),
+        mostRead: mostRead.map(toCard),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
 };
 
-// Must render the FULL article in the HTML (SEO) - load it here and pass it to the view, not via Ajax.
-// Remember to call viewService.recordView(...) on every visit.
-exports.articlePage = todo('articlePage');
+function notFoundPage(res) {
+  res.status(404).render('error', { title: 'הכתבה לא נמצאה', message: 'הכתבה שחיפשת לא קיימת או שעדיין לא פורסמה' });
+}
 
-// Returns { articles: [...], hasMore: boolean }. Only articles with published != null, fields from `published.*`.
-exports.listArticles = todo('listArticles');
+// Body is stored as plain text; an empty line separates paragraphs. The view prints each paragraph
+// with <%= %> (escaped), so text written by a reporter can never inject HTML or scripts into the page.
+function toParagraphs(body) {
+  return String(body || '')
+    .split(/\r?\n\s*\r?\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
 
-exports.weather = todo('weather');
+// Counting the visit must never break or slow down the page, so we don't await it and only log failures
+function trackVisit(articleId, deviceId) {
+  viewService.recordView(articleId, deviceId)
+    .catch((err) => logger.error(`recordView failed for ${articleId}: ${err.message}`));
+  // Remember that this device opened the article (for the "viewed / not viewed" filter). Upsert = at most one row.
+  DeviceView.updateOne({ deviceId, article: articleId }, { $setOnInsert: { deviceId, article: articleId } }, { upsert: true })
+    .catch((err) => logger.error(`DeviceView failed for ${articleId}: ${err.message}`));
+}
+
+// Server-rendered article page: the full text is in the HTML the server returns (search engines can read it
+// without running JavaScript). Only the comments are loaded later with Ajax.
+exports.articlePage = async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return notFoundPage(res);
+
+    // Only the published version is public - a draft or an update waiting for approval is never shown here
+    const article = await Article.findOne({ _id: req.params.id, published: { $ne: null } })
+      .select('published category author firstPublishedAt lastPublishedAt')
+      .populate('author', 'displayName')
+      .lean();
+    if (!article) return notFoundPage(res);
+
+    trackVisit(article._id, req.deviceId);
+
+    const wasUpdated = article.lastPublishedAt && article.lastPublishedAt > article.firstPublishedAt;
+    res.render('public/article', {
+      title: article.published.title + ' | The Daily Web',
+      description: article.published.summary,
+      image: article.published.imageUrl,
+      article,
+      content: article.published,
+      paragraphs: toParagraphs(article.published.body),
+      categoryLabel: CATEGORY_LABELS_HE[article.category],
+      authorName: article.author ? article.author.displayName : '',
+      updatedAt: wasUpdated ? article.lastPublishedAt : null,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Escape characters that have a special meaning in a regex, so searching "C++" or "(" can't break the query
+function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function badRequest(message) {
+  const err = new Error(message);
+  err.status = 400;
+  return err;
+}
+
+// Reads the query string and validates it. Missing values get defaults; invalid values throw a 400 error.
+function parseFeedQuery(query) {
+  const page = query.page === undefined ? 1 : Number(query.page);
+  if (!Number.isInteger(page) || page < 1) throw badRequest('מספר עמוד לא תקין');
+
+  const q = String(query.q || '').trim();
+  if (q.length > MAX_QUERY_LENGTH) throw badRequest('טקסט החיפוש ארוך מדי');
+
+  const category = query.category || '';
+  if (category && !CATEGORIES.includes(category)) throw badRequest('קטגוריה לא קיימת');
+
+  const viewed = query.viewed || 'all';
+  if (!VIEWED_OPTIONS.includes(viewed)) throw badRequest('ערך סינון צפייה לא תקין');
+
+  const sort = query.sort || 'date';
+  if (!SORTS[sort]) throw badRequest('סוג מיון לא תקין');
+
+  // snapshot: the moment the first page was loaded. Later pages only include articles published
+  // up to that moment, so a newly published article can't push items down and cause duplicates.
+  const snapshot = query.snapshot ? new Date(query.snapshot) : new Date();
+  if (Number.isNaN(snapshot.getTime())) throw badRequest('snapshot לא תקין');
+
+  return { page, q, category, viewed, sort, snapshot };
+}
+
+// Returns { articles, hasMore, page, snapshot }. Only articles that have a published version, fields from `published.*`.
+exports.listArticles = async (req, res, next) => {
+  try {
+    const { page, q, category, viewed, sort, snapshot } = parseFeedQuery(req.query);
+
+    const filter = { ...PUBLISHED, firstPublishedAt: { $lte: snapshot } };
+    if (q) filter['published.title'] = { $regex: escapeRegex(q), $options: 'i' };
+    if (category) filter.category = category;
+
+    if (viewed !== 'all') {
+      const seenIds = await DeviceView.distinct('article', { deviceId: req.deviceId });
+      filter._id = viewed === 'viewed' ? { $in: seenIds } : { $nin: seenIds };
+    }
+
+    // Ask for one extra article: if it comes back, there is at least one more page
+    const docs = await Article.find(filter)
+      .sort(SORTS[sort])
+      .skip((page - 1) * PAGE_SIZE)
+      .limit(PAGE_SIZE + 1)
+      .select(CARD_FIELDS)
+      .populate('author', 'displayName')
+      .lean();
+
+    const hasMore = docs.length > PAGE_SIZE;
+    const pageDocs = docs.slice(0, PAGE_SIZE);
+
+    // Which of THESE articles has this device already opened? (checks only this page, not the whole history)
+    const seenOnPage = await DeviceView.find({ deviceId: req.deviceId, article: { $in: pageDocs.map((a) => a._id) } })
+      .select('article')
+      .lean();
+    const seenSet = new Set(seenOnPage.map((v) => String(v.article)));
+
+    const articles = pageDocs.map((a) => ({ ...toCard(a), viewed: seenSet.has(String(a._id)) }));
+
+    res.json({ articles, hasMore, page, snapshot: snapshot.toISOString() });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.weather = async (req, res) => {
+  const data = await weatherService.getWeather(); // never throws
+  if (!data) return res.status(503).json({ error: 'מזג האוויר לא זמין כרגע' });
+  res.set('Cache-Control', 'public, max-age=300'); // browsers may reuse it for 5 minutes
+  res.json(data);
+};

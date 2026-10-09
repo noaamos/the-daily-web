@@ -4,6 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= typeof title !== 'undefined' ? title : 'The Daily Web' %></title>
+  <%# Optional SEO / link-preview tags: pass description and image to include('../partials/head', ...) or res.render %>
+  <% if (typeof description !== 'undefined' && description) { %>
+  <meta name="description" content="<%= description %>">
+  <meta property="og:title" content="<%= title %>">
+  <meta property="og:description" content="<%= description %>">
+  <% } %>
+  <% if (typeof image !== 'undefined' && image) { %><meta property="og:image" content="<%= image %>"><% } %>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Suez+One&family=Heebo:wght@400;500;700;800&display=swap">
   <link rel="stylesheet" href="/css/main.css">
+  <%# Page-specific stylesheets: include('../partials/head', { styles: ['/css/public.css'] }) %>
+  <% (typeof styles !== 'undefined' ? styles : []).forEach((href) => { %><link rel="stylesheet" href="<%= href %>">
+  <% }) %>
 </head>
 <body>
