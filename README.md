@@ -11,8 +11,9 @@ Node.js · Express · MongoDB/Mongoose · EJS · Vanilla JS (Ajax)
 ```bash
 npm install
 cp .env.example .env      # ולמלא את הערכים
-npm run seed              # מוחק את כל הנתונים ויוצר נתוני דמה
+npm run seed              # מוחק את כל הנתונים ויוצר נתוני דמה (500 כתבות, היסטוריית צפיות ועדכונים)
 npm run dev               # מריץ עם טעינה מחדש אוטומטית
+npm test                  # בדיקות אוטומטיות (מריץ seed, ולכן מוחק את הנתונים!)
 ```
 
 האתר יעלה בכתובת http://localhost:3000
@@ -37,8 +38,9 @@ routes/                 קובץ routes לכל אזור
 middleware/             הרשאות, מזהה מכשיר, הגבלת תגובות, טיפול בשגיאות
 services/               לוגיקה משותפת: מעברי מצב, צפיות, מזג אוויר
 views/                  תבניות EJS, תיקייה לכל אזור + partials משותפים
-public/                 CSS ו-JS של צד הלקוח
-seed/seed.js            נתוני דמה
+public/                 CSS ו-JS של צד הלקוח (vendor/chart.umd.js: ספריית Chart.js 4.4.1 לגרף)
+seed/                   נתוני דמה: seed.js (משתמשים, כתבות, תגובות), seedViews.js (צפיות והיסטוריית פרסום), seedUpdates.js (עדכונים ממתינים)
+tests/full-test.js      בדיקות אוטומטיות (npm test)
 logs/                   קובץ לוג (לא עולה לגיט)
 ```
 
@@ -49,7 +51,7 @@ logs/                   קובץ לוג (לא עולה לגיט)
 | 1 | אתר ציבורי ומזג אוויר | `routes/public.js`, `controllers/publicController.js`, `services/weatherService.js`, `models/DeviceView.js`, `views/public/*`, `public/js/feed.js`, `public/js/weather.js` |
 | 2 | הזדהות, הרשאות, תגובות, משתמשים, seed | `routes/auth.js`, `routes/comments.js`, `routes/users.js`, `controllers/auth\|comment\|userController.js`, `middleware/*`, `models/User.js`, `models/Comment.js`, `views/auth/*`, `public/js/comments.js`, `seed/*` |
 | 3 | אזור כתב | `routes/reporter.js`, `controllers/reporterController.js`, `services/articleService.js`, `views/reporter/*`, `public/js/reporter.js` |
-| 4 | אזור עורך ו-Analytics | `routes/editor.js`, `controllers/editorController.js`, `services/viewService.js`, `models/ViewStat.js`, `views/editor/*`, `public/js/editor.js`, `public/js/analytics.js` |
+| 4 | אזור עורך, ספירת צפיות ו-Analytics, בדיקות | `routes/editor.js`, `controllers/editorController.js`, `services/viewService.js`, `models/ViewStat.js`, `views/editor/*`, `public/js/editor.js`, `public/js/review.js`, `public/js/analytics.js`, `public/css/editor.css`, `seed/seedViews.js`, `seed/seedUpdates.js`, `tests/*` |
 
 **קבצים משותפים** (`app.js`, `models/Article.js`, `config/constants.js`, `views/partials/*`, `public/css/main.css`): לפני שמשנים, כותבים בקבוצה, ומעלים את השינוי ב-PR קטן ונפרד.
 
@@ -86,7 +88,7 @@ logs/                   קובץ לוג (לא עולה לגיט)
 | GET/POST | `/reporter/api/articles` | הכתבות שלי / יצירת כתבה | 3 |
 | PUT | `/reporter/api/articles/:id/draft` | שמירה אוטומטית | 3 |
 | POST | `/reporter/api/articles/:id/submit` | הגשה לאישור | 3 |
-| GET | `/editor/api/articles?status=` | כל הכתבות | 4 |
+| GET | `/editor/api/articles?status=&q=&page=` | כל הכתבות עם מספרים לפי מצב. מחזיר `{ articles, counts, hasMore }` | 4 |
 | PUT | `/editor/api/articles/:id/draft` | עריכה על ידי העורך | 4 |
 | POST | `/editor/api/articles/:id/approve` | אישור ופרסום | 4 |
 | POST | `/editor/api/articles/:id/return` | החזרה לתיקונים `{ note }` | 4 |
@@ -110,4 +112,15 @@ git push -u origin feature/<אזור>-<מה>
 
 ## פיצ'רים
 
-<!-- TODO: לעדכן לפני ההגשה עם תיאור קצר של כל פיצ'ר שמומש -->
+### אזור עורך, ספירת צפיות ו-Impact Analytics (חבר 4)
+
+- **ספירת צפיות**: כל כניסה לכתבה מוסיפה 1 למונה של אותה כתבה באותה שעה (`ViewStat`: כתבה, תחילת השעה, `count`) ול-`Article.viewCount`. זה עדכון אטומי אחד (`$inc` עם `upsert`), ואינדקס ייחודי על (כתבה, שעה) מונע כפילויות. כך אלפי קוראים במקביל לא יוצרים מסמך לכל צפייה, והגרף קורא רק כמה עשרות מסמכים קטנים.
+- **דשבורד עורך** (`/editor`): כל הכתבות עם סינון לפי מצב ומספרים, "טען עוד", ללא רענון עמוד. עדכון של כתבה שכבר פורסמה מסומן "עדכון".
+- **עמוד בדיקה** (`/editor/articles/:id`): התוכן שהוגש. בעדכון של כתבה שפורסמה מוצגות זו לצד זו הגרסה המפורסמת והגרסה החדשה, והשדות ששונו מסומנים. העורך יכול לערוך, לאשר ולפרסם, להחזיר לכתב עם הערה (חובה) או למחוק (נמחקים גם התגובות והסטטיסטיקות של הכתבה).
+- **Impact Analytics** (`/editor/analytics`): גרף Chart.js של צפיות לאורך זמן. בכל פרסום או עדכון שאושר יש קו מקווקו (הנתונים מ-`Article.publishHistory`), ואפשר לבחור פרסום ולראות השוואה: ממוצע צפיות לשעה ב-24 השעות שלפניו ובשעות שאחריו.
+- **הרשאות**: כל הנתיבים תחת `/editor` מוגנים בצד השרת (`requireRole('editor')`), כתב מקבל 403 ומשתמש לא מחובר מקבל 401 או הפניה להתחברות.
+- **אבטחה**: מזהים נבדקים לפני השימוש, שדות חייבים להיות מחרוזות (מונע הזרקת אופרטורים של MongoDB), טקסט חיפוש עובר escape, והתצוגה משתמשת ב-escape של EJS וב-`textContent`.
+- **נתוני דמה**: `npm run seed` יוצר 500 כתבות, 30 ימים של צפיות לפי שעה, כתבות שעודכנו כמה פעמים, וכתבות ממתינות שהן עדכון של כתבה שפורסמה.
+- **בדיקות**: `npm test` מריץ 263 בדיקות אוטומטיות (תחביר, נתוני דמה, אתר ציבורי ו-SEO, ספירת צפיות במקביל, הרשאות, פעולות עורך, ניסיונות הזרקה ו-XSS, עומס, ו-restart של השרת). הבדיקה מוחקת את הנתונים, לכן מריצים אותה רק על מסד נתונים לפיתוח.
+
+<!-- TODO: לעדכן לפני ההגשה עם תיאור קצר של כל פיצ'ר שמומש אצל שאר החברים (אתר ציבורי, הזדהות, אזור כתב) -->
