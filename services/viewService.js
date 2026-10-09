@@ -18,16 +18,18 @@ async function recordView(articleId, deviceId) {
   ]);
 }
 
-// Returns data for the Impact Analytics chart: { buckets: [{ t, count }], publishes: [Date] }
+// Returns data for the Impact Analytics chart: { title, total, buckets: [{ t, count }], publishes: [Date] }
 // or null when the article does not exist (the controller answers 404).
 async function getArticleStats(articleId) {
   if (!mongoose.isValidObjectId(articleId)) return null;
   const [stats, article] = await Promise.all([
     ViewStat.find({ article: articleId }).sort({ bucket: 1 }).select('bucket count').lean(),
-    Article.findById(articleId).select('publishHistory').lean(),
+    Article.findById(articleId).select('publishHistory published.title draft.title viewCount').lean(),
   ]);
   if (!article) return null;
   return {
+    title: (article.published && article.published.title) || (article.draft && article.draft.title) || '',
+    total: article.viewCount,
     buckets: stats.map((s) => ({ t: s.bucket, count: s.count })),
     publishes: article.publishHistory.map((p) => p.at),
   };

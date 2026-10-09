@@ -101,6 +101,9 @@
     const actionsCell = el('td', { class: 'col-actions' }, [actions]);
 
     actions.append(el('a', { class: 'btn-outline', href: `/editor/articles/${a.id}`, text: a.status === 'pending' ? 'בדיקה' : 'צפייה' }));
+    if (a.status === 'published') {
+      actions.append(el('a', { class: 'btn-outline', href: `/editor/analytics?article=${a.id}`, text: 'סטטיסטיקות' }));
+    }
     if (a.status === 'pending') {
       actions.append(
         actionButton('אישור', 'btn-accent', async (e) => {

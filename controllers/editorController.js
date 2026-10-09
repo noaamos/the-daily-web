@@ -1,22 +1,42 @@
 // Owner: member 4
+const mongoose = require('mongoose');
 const Article = require('../models/Article');
 const todo = require('./todo');
+const { getArticleStats } = require('../services/viewService');
+const { httpError } = require('../middleware/errorHandler');
 const { STATUS, STATUS_LABELS_HE, CATEGORY_LABELS_HE, PAGE_SIZE } = require('../config/constants');
 
 const STATUSES = Object.values(STATUS);
+const MAX_QUERY_LENGTH = 100;
+
+// Escape characters that have a special meaning in a regex, so searching "C++" or "(" can't break the query
+function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 exports.dashboardPage = (req, res) => {
   res.render('editor/dashboard', { title: 'אזור העורך' });
 };
 
 exports.reviewPage = todo('editor.reviewPage');
-exports.analyticsPage = todo('editor.analyticsPage');
 
-// GET /editor/api/articles?status=&page=
+// Impact Analytics page. ?article=<id> pre-selects an article (link from the dashboard).
+exports.analyticsPage = (req, res) => {
+  const articleId = mongoose.isValidObjectId(req.query.article) ? String(req.query.article) : '';
+  res.render('editor/analytics', { title: 'סטטיסטיקות כתבות', articleId });
+};
+
+// GET /editor/api/articles?status=&q=&page=
 // All articles for the editor dashboard, newest activity first, plus a count per status for the filter chips.
 exports.list = async (req, res, next) => {
   try {
     const filter = STATUSES.includes(req.query.status) ? { status: req.query.status } : {};
+    const q = String(req.query.q || '').trim();
+    if (q.length > MAX_QUERY_LENGTH) throw httpError(400, 'טקסט החיפוש ארוך מדי');
+    if (q) {
+      const rx = { $regex: escapeRegex(q), $options: 'i' };
+      filter.$or = [{ 'published.title': rx }, { 'draft.title': rx }];
+    }
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
 
     const [docs, grouped] = await Promise.all([
@@ -59,4 +79,14 @@ exports.editDraft = todo('editor.editDraft');
 exports.approve = todo('editor.approve');
 exports.returnForFixes = todo('editor.returnForFixes');
 exports.remove = todo('editor.remove');
-exports.stats = todo('editor.stats');
+
+// GET /editor/api/articles/:id/stats - data for the Impact Analytics chart
+exports.stats = async (req, res, next) => {
+  try {
+    const stats = await getArticleStats(req.params.id);
+    if (!stats) throw httpError(404, 'הכתבה לא נמצאה');
+    res.json(stats);
+  } catch (err) {
+    next(err);
+  }
+};
