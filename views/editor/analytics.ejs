@@ -2,54 +2,68 @@
 <%- include('../partials/header') %>
 <main class="editor-page analytics-page" data-initial-article="<%= articleId %>">
   <!-- Owner: member 4 -->
-  <h1 class="section-title">סטטיסטיקות כתבות - Impact Analytics</h1>
-  <p class="muted editor-intro">בחרו כתבה כדי לראות את כמות הצפיות שלה לאורך זמן, ואיך היא השתנתה לפני ואחרי כל עדכון שפורסם.</p>
+  <header class="analytics-head">
+    <h1 class="section-title">Impact Analytics</h1>
+    <p class="muted">כמה צפיות קיבלה כתבה לאורך זמן, ומה קרה לצפיות אחרי כל עדכון שפורסם.</p>
+  </header>
 
-  <section class="picker" aria-labelledby="picker-title">
-    <h2 id="picker-title" class="section-label">בחירת כתבה</h2>
-    <label class="visually-hidden" for="article-search">חיפוש כתבה לפי כותרת</label>
-    <input type="search" id="article-search" class="picker-search" placeholder="חיפוש כתבה שפורסמה לפי כותרת..." maxlength="100" autocomplete="off">
-    <ul id="picker-results" class="picker-results" aria-live="polite"></ul>
-  </section>
+  <div class="workspace">
+    <aside class="panel picker" aria-labelledby="picker-title">
+      <h2 id="picker-title" class="panel-title">בחירת כתבה</h2>
+      <label class="visually-hidden" for="article-search">חיפוש כתבה לפי כותרת</label>
+      <input type="search" id="article-search" class="picker-search" placeholder="חיפוש לפי כותרת..." maxlength="100" autocomplete="off">
+      <ul id="picker-results" class="picker-results" aria-live="polite"></ul>
+    </aside>
 
-  <p id="chart-empty" class="muted chart-empty">עדיין לא נבחרה כתבה.</p>
+    <div class="stage">
+      <p id="chart-empty" class="stage-empty">בחרו כתבה מהרשימה כדי לראות את הצפיות שלה.</p>
 
-  <section id="chart-section" aria-labelledby="chart-title" hidden>
-    <header class="chart-head">
-      <div>
-        <h2 id="chart-title" class="chart-title"></h2>
-        <p id="chart-total" class="muted"></p>
+      <div id="chart-section" class="stage-body" hidden>
+        <section class="panel chart-panel" aria-labelledby="chart-title">
+          <header class="chart-head">
+            <div class="chart-heading">
+              <h2 id="chart-title" class="chart-title"></h2>
+              <p id="chart-total" class="chart-total"></p>
+            </div>
+            <div class="range-buttons" id="range-buttons" role="group" aria-label="טווח זמן">
+              <button type="button" class="chip" data-range="24h">24 שעות</button>
+              <button type="button" class="chip" data-range="7d">7 ימים</button>
+              <button type="button" class="chip active" data-range="all">הכל</button>
+            </div>
+          </header>
+
+          <div class="chart-wrap">
+            <canvas id="views-chart" role="img" aria-label="גרף צפיות לאורך זמן"></canvas>
+          </div>
+
+          <ul class="chart-key" aria-label="מקרא">
+            <li><span class="key-swatch key-before"></span>לפני הפרסום שנבחר</li>
+            <li><span class="key-swatch key-after"></span>אחרי הפרסום שנבחר</li>
+            <li><span class="key-swatch key-marker"></span>פרסום או עדכון שאושר</li>
+          </ul>
+        </section>
+
+        <div class="compare">
+          <section class="panel summary-card" id="summary-card" aria-labelledby="summary-title">
+            <h3 id="summary-title" class="panel-title">לפני ואחרי</h3>
+            <p id="summary-text" class="summary-text">בחרו נקודת פרסום.</p>
+            <dl id="summary-stats" class="summary-stats" hidden>
+              <div class="stat stat-before"><dt>צפיות בשעה, לפני</dt><dd id="avg-before"></dd></div>
+              <div class="stat stat-after"><dt>צפיות בשעה, אחרי</dt><dd id="avg-after"></dd></div>
+              <div class="stat stat-change"><dt>שינוי</dt><dd id="change" class="change"></dd></div>
+            </dl>
+            <p id="summary-note" class="summary-note" hidden></p>
+          </section>
+
+          <section class="panel timeline-panel" aria-labelledby="timeline-title">
+            <h3 id="timeline-title" class="panel-title">נקודות פרסום</h3>
+            <p class="muted small">לחצו על פרסום כדי להשוות את הצפיות לפניו ואחריו.</p>
+            <ol id="publish-list" class="publish-list"></ol>
+          </section>
+        </div>
       </div>
-      <div class="range-buttons" id="range-buttons" role="group" aria-label="טווח זמן">
-        <button type="button" class="chip" data-range="24h">24 שעות</button>
-        <button type="button" class="chip" data-range="7d">7 ימים</button>
-        <button type="button" class="chip active" data-range="all">הכל</button>
-      </div>
-    </header>
-
-    <div class="chart-wrap">
-      <canvas id="views-chart" role="img" aria-label="גרף צפיות לאורך זמן"></canvas>
     </div>
-    <p class="muted chart-hint">הקווים המקווקווים מסמנים את הרגעים שבהם עורך אישר ופרסם גרסה (פרסום ראשון או עדכון). הציר האנכי הוא צפיות בשעה.</p>
-
-    <div class="compare">
-      <div class="publish-list-wrap">
-        <h3 class="section-label">נקודות פרסום</h3>
-        <p class="muted small">לחצו על פרסום כדי להשוות את הצפיות לפניו ואחריו.</p>
-        <ol id="publish-list" class="publish-list"></ol>
-      </div>
-      <div class="summary-card" id="summary-card" aria-live="polite">
-        <h3 class="section-label">לפני ואחרי</h3>
-        <p id="summary-text" class="muted">בחרו נקודת פרסום.</p>
-        <dl id="summary-stats" class="summary-stats" hidden>
-          <div><dt>ממוצע צפיות לשעה לפני</dt><dd id="avg-before"></dd></div>
-          <div><dt>ממוצע צפיות לשעה אחרי</dt><dd id="avg-after"></dd></div>
-          <div><dt>שינוי</dt><dd id="change" class="change"></dd></div>
-        </dl>
-        <p id="summary-note" class="muted small" hidden></p>
-      </div>
-    </div>
-  </section>
+  </div>
 </main>
 <script src="/vendor/chart.umd.js"></script>
 <script src="/js/analytics.js" defer></script>

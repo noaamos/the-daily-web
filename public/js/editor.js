@@ -1,6 +1,7 @@
 // Owner: member 4
 // Vanilla JS + fetch() only. No page reloads.
-// Editor dashboard: status filter, article list with "load more", approve / return / delete actions.
+// Editor dashboard: status filter and the article list with "load more".
+// Approving / returning happens on the review page (/editor/articles/:id), where the editor sees the content first.
 (function () {
   const rowsEl = document.getElementById('article-rows');
   const statusEl = document.getElementById('list-status');
@@ -34,23 +35,24 @@
     toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3500);
   }
 
-  const formatDate = (iso) => new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  // "3 hours ago" for recent changes, a short date for older ones
+  const rtf = new Intl.RelativeTimeFormat('he', { numeric: 'auto' });
+  function timeAgo(iso) {
+    const diff = (new Date(iso) - Date.now()) / 1000;
+    const abs = Math.abs(diff);
+    if (abs < 60) return 'ממש עכשיו';
+    if (abs < 3600) return rtf.format(Math.round(diff / 60), 'minute');
+    if (abs < 86400) return rtf.format(Math.round(diff / 3600), 'hour');
+    if (abs < 7 * 86400) return rtf.format(Math.round(diff / 86400), 'day');
+    return new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
+  }
 
   // ---- API ----
-  async function api(method, url, body) {
-    const res = await fetch(url, {
-      method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+  async function api(method, url) {
+    const res = await fetch(url, { method });
     let data = {};
     try { data = await res.json(); } catch (e) { /* not JSON */ }
-    if (!res.ok) {
-      const notReady = res.status === 501;
-      const err = new Error(notReady ? 'הפעולה טרם מומשה בשרת' : (data.error || 'הפעולה נכשלה'));
-      err.status = res.status;
-      throw err;
-    }
+    if (!res.ok) throw new Error(data.error || 'הפעולה נכשלה');
     return data;
   }
 
@@ -62,67 +64,29 @@
     });
   }
 
-  function actionButton(label, cls, onClick) {
-    const btn = el('button', { type: 'button', class: cls, text: label });
-    btn.addEventListener('click', onClick);
-    return btn;
-  }
-
-  function buildReturnForm(article, actionsCell) {
-    const textarea = el('textarea', { 'aria-label': 'הערה לכתב', placeholder: 'מה צריך לתקן?', maxlength: '1000' });
-    const error = el('p', { class: 'field-error', hidden: '' });
-    const send = actionButton('שליחה', 'btn-accent', async () => {
-      const note = textarea.value.trim();
-      if (!note) {
-        error.textContent = 'חובה לכתוב הערה לכתב';
-        error.hidden = false;
-        textarea.focus();
-        return;
-      }
-      error.hidden = true;
-      send.disabled = true;
-      try {
-        await api('POST', `/editor/api/articles/${article.id}/return`, { note });
-        toast('הכתבה הוחזרה לכתב');
-        load(true);
-      } catch (err) {
-        toast(err.message, true);
-        send.disabled = false;
-      }
-    });
-    const cancel = actionButton('ביטול', 'btn-outline', () => form.remove());
-    const form = el('div', { class: 'return-form' }, [el('div', { style: 'flex:1' }, [textarea, error]), send, cancel]);
-    actionsCell.append(form);
-    textarea.focus();
-  }
-
   function buildRow(a) {
-    const actions = el('div', { class: 'row-actions' });
-    const actionsCell = el('td', { class: 'col-actions' }, [actions]);
+    const title = el('a', { class: 'row-title', href: `/editor/articles/${a.id}`, text: a.title });
+    const heading = el('div', {}, [title]);
+    const meta = el('div', { class: 'row-meta' }, [
+      el('span', { text: a.author }),
+      el('span', { class: 'ed-cat', 'data-category': a.category, text: a.categoryLabel }),
+      el('span', { title: new Date(a.updatedAt).toLocaleString('he-IL'), text: `עודכן ${timeAgo(a.updatedAt)}` }),
+    ]);
 
-    actions.append(el('a', { class: 'btn-outline', href: `/editor/articles/${a.id}`, text: a.status === 'pending' ? 'בדיקה' : 'צפייה' }));
-    if (a.status === 'published') {
-      actions.append(el('a', { class: 'btn-outline', href: `/editor/analytics?article=${a.id}`, text: 'סטטיסטיקות' }));
-    }
-    if (a.status === 'pending') {
-      actions.append(
-        actionButton('אישור', 'btn-accent', async (e) => {
-          e.currentTarget.disabled = true;
-          try {
-            await api('POST', `/editor/api/articles/${a.id}/approve`);
-            toast('הכתבה אושרה ופורסמה');
-            load(true);
-          } catch (err) {
-            toast(err.message, true);
-            e.currentTarget.disabled = false;
-          }
-        }),
-        actionButton('החזרה לתיקונים', 'btn-outline', () => {
-          if (!actionsCell.querySelector('.return-form')) buildReturnForm(a, actionsCell);
-        }),
-      );
-    }
-    actions.append(actionButton('מחיקה', 'btn-outline btn-danger', async () => {
+    // badges sit together in the status column, vertically centered in the row
+    const badges = el('div', { class: 'row-badges' }, [el('span', { class: `badge badge-${a.status}`, text: a.statusLabel })]);
+    if (a.isUpdate) badges.append(el('span', { class: 'badge badge-update', title: 'עדכון לכתבה שכבר פורסמה, ממתין לאישור', text: 'עדכון' }));
+    const status = el('div', { class: 'row-status' }, [badges]);
+    if (a.status === 'published') status.append(el('span', { class: 'row-views', text: `${a.viewCount.toLocaleString('he-IL')} צפיות` }));
+
+    // one main button: "review" when the article needs the editor, otherwise just "view"
+    const isPending = a.status === 'pending';
+    const main = el('a', { class: isPending ? 'btn-accent' : 'btn-outline', href: `/editor/articles/${a.id}`, text: isPending ? 'בדיקה' : 'צפייה' });
+
+    const menu = el('div', { class: 'more-menu' });
+    if (a.status === 'published') menu.append(el('a', { href: `/editor/analytics?article=${a.id}`, text: 'סטטיסטיקות' }));
+    const del = el('button', { type: 'button', class: 'danger', text: 'מחיקה' });
+    del.addEventListener('click', async () => {
       if (!confirm(`למחוק את "${a.title}"? אי אפשר לבטל.`)) return;
       try {
         await api('DELETE', `/editor/api/articles/${a.id}`);
@@ -131,25 +95,24 @@
       } catch (err) {
         toast(err.message, true);
       }
-    }));
+    });
+    menu.append(del);
+    const more = el('details', { class: 'more' }, [el('summary', { 'aria-label': 'עוד פעולות', text: '⋯' }), menu]);
 
-    const titleLink = el('a', { href: `/editor/articles/${a.id}`, text: a.title });
-    const titleCell = el('td', { class: 'col-title' }, [titleLink]);
-    if (a.isUpdate) titleCell.append(el('span', { class: 'badge badge-update', text: 'עדכון לכתבה שפורסמה' }));
-
-    return el('tr', { dataset: { id: a.id } }, [
-      titleCell,
-      el('td', { class: 'col-meta', 'data-label': 'כתב', text: a.author }),
-      el('td', { 'data-label': 'קטגוריה' }, [el('span', { class: 'ed-cat', 'data-category': a.category, text: a.categoryLabel })]),
-      el('td', { 'data-label': 'מצב' }, [el('span', { class: `badge badge-${a.status}`, text: a.statusLabel })]),
-      el('td', { class: 'col-meta', 'data-label': 'עודכן', text: formatDate(a.updatedAt) }),
-      el('td', { class: 'col-meta', 'data-label': 'צפיות', text: a.viewCount.toLocaleString('he-IL') }),
-      actionsCell,
+    return el('li', { class: 'article-row', dataset: { id: a.id } }, [
+      el('div', { class: 'row-main' }, [heading, meta]),
+      status,
+      el('div', { class: 'row-actions' }, [main, more]),
     ]);
   }
 
+  // close an open "more" menu when clicking elsewhere
+  document.addEventListener('click', (e) => {
+    document.querySelectorAll('.more[open]').forEach((d) => { if (!d.contains(e.target)) d.removeAttribute('open'); });
+  });
+
   // ---- loading ----
-  // reset = true: start again from page 1 (filter changed / after an action); false: append the next page
+  // reset = true: start again from page 1 (filter changed / after a delete); false: append the next page
   async function load(reset) {
     const myRequest = ++state.requestId; // ignore answers that arrive after a newer request
     if (reset) {

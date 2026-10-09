@@ -3,7 +3,7 @@
 <main class="editor-page">
   <!-- Owner: member 4 -->
   <h1 class="section-title">ניהול כתבות</h1>
-  <p class="muted editor-intro">כל הכתבות במערכת. אפשר לסנן לפי מצב, לבדוק כתבה שממתינה לאישור, לאשר, להחזיר לכתב עם הערה או למחוק.</p>
+  <p class="muted editor-intro">כל הכתבות במערכת. סננו לפי מצב ופתחו כתבה שממתינה לאישור כדי לבדוק אותה, לאשר או להחזיר לכתב.</p>
 
   <nav class="status-chips" id="status-filter" aria-label="סינון לפי מצב">
     <button type="button" class="chip active" data-status="">הכל <span class="chip-count" data-count="total"></span></button>
@@ -14,20 +14,7 @@
   </nav>
 
   <section id="all-articles" aria-live="polite">
-    <table class="article-table">
-      <thead>
-        <tr>
-          <th scope="col">כותרת</th>
-          <th scope="col">כתב</th>
-          <th scope="col">קטגוריה</th>
-          <th scope="col">מצב</th>
-          <th scope="col">עודכן</th>
-          <th scope="col">צפיות</th>
-          <th scope="col"><span class="visually-hidden">פעולות</span></th>
-        </tr>
-      </thead>
-      <tbody id="article-rows"></tbody>
-    </table>
+    <ul id="article-rows" class="article-list"></ul>
     <p id="list-status" class="muted list-status">טוען...</p>
     <button type="button" id="load-more" class="btn-outline" hidden>טען עוד</button>
   </section>

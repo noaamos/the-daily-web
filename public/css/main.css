@@ -65,7 +65,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 400; text-wrap: bala
   font-family: var(--font-display); font-weight: 400; font-size: clamp(2rem, 6vw, 3.4rem);
   line-height: 1; letter-spacing: -0.01em; text-decoration: none; direction: ltr; white-space: nowrap;
 }
-.masthead-actions { display: flex; gap: 1rem; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+/* wrap-reverse: if the actions don't fit on one line, the last one (log out / staff login) goes on the top line */
+.masthead-actions { display: flex; gap: 1rem; align-items: center; justify-content: flex-end; flex-wrap: wrap-reverse; }
 .masthead-link { font-size: 0.9rem; text-decoration: none; font-weight: 500; }
 .masthead-link:hover { text-decoration: underline; text-underline-offset: 4px; }
 .inline-form { display: inline; }
@@ -93,6 +94,11 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 400; text-wrap: bala
 .sidebar > section { background: var(--surface-soft); border-radius: var(--radius); padding: 1rem 1.25rem; }
 .sidebar h2 { font-size: 1.05rem; margin: 0 0 0.5rem; }
 .narrow { max-width: 420px; margin: 2rem auto; padding: 0 1rem; }
+/* Error pages (403 / 404 / ...): centered message with a button back home */
+.error-page { max-width: 32rem; margin: 5rem auto 4rem; padding: 0 1rem; text-align: center; }
+.error-page h1 { font-size: clamp(2rem, 6vw, 3rem); margin: 0 0 0.75rem; }
+.error-page p { margin: 0 0 1.5rem; font-size: 1.1rem; }
+.error-page .btn-accent { padding: 0.5rem 1.5rem; font-size: 1rem; }
 .stack { display: flex; flex-direction: column; gap: 0.5rem; }
 .muted { color: var(--muted); }
 .error { color: var(--accent); }
@@ -119,8 +125,16 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 400; text-wrap: bala
   .sidebar > .weather-widget { order: -1; width: 100%; }
   .sidebar > section:not(.weather-widget) { order: 1; width: 100%; }
 }
+/* Tablet: logo on its own line, date and actions below it */
+@media (max-width: 900px) {
+  .masthead { grid-template-columns: 1fr auto; grid-template-areas: "logo logo" "date actions"; row-gap: 0.75rem; }
+  .logo { grid-area: logo; justify-self: center; }
+  .masthead-date { grid-area: date; }
+  .masthead-actions { grid-area: actions; }
+}
+/* Phone: actions bar on top (links on one side, log out on the other), then logo, then date */
 @media (max-width: 640px) {
-  .masthead { grid-template-columns: 1fr; justify-items: center; gap: 0.5rem; padding-block: 1rem; }
-  .masthead-date { order: 2; }
-  .masthead-actions { order: 3; justify-content: center; }
+  .masthead { grid-template-columns: 1fr; grid-template-areas: "actions" "logo" "date"; justify-items: center; gap: 0.5rem; padding-block: 1rem; }
+  .masthead-actions { width: 100%; justify-content: flex-start; }
+  .masthead-actions > :last-child { margin-inline-start: auto; }
 }

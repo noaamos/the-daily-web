@@ -82,6 +82,10 @@
     versions.hidden = true;
     $('f-title').focus();
   });
+  $('f-title').addEventListener('input', () => {
+    $('f-title').classList.remove('invalid');
+    showError($('title-error'), '');
+  });
   $('edit-cancel').addEventListener('click', () => {
     form.hidden = true;
     versions.hidden = false;
@@ -95,7 +99,16 @@
       body: form.body.value,
       imageUrl: form.imageUrl.value,
     };
-    if (!payload.title.trim()) { showError($('edit-error'), 'חובה למלא כותרת'); $('f-title').focus(); return; }
+    if (!payload.title.trim()) {
+      // show the problem right at the field (the form is long, a message by the buttons is easy to miss)
+      $('f-title').classList.add('invalid');
+      showError($('title-error'), 'חובה למלא כותרת - אי אפשר לשמור כתבה בלי כותרת');
+      $('f-title').scrollIntoView({ block: 'center', behavior: 'smooth' });
+      $('f-title').focus();
+      return;
+    }
+    showError($('title-error'), '');
+    $('f-title').classList.remove('invalid');
     showError($('edit-error'), '');
     run(form.querySelector('[type="submit"]'), () => api('PUT', `${base}/draft`, payload), 'השינויים נשמרו');
   });

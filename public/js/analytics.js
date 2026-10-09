@@ -182,7 +182,10 @@
     const label = publishLabel(state.selected);
     const { before, after } = compare(state.publishes[state.selected]);
     if (!after.hours) {
-      textEl.textContent = `${label}: עדיין לא עבר מספיק זמן מהפרסום כדי להשוות.`;
+      const tooRecent = hourStart(state.publishes[state.selected]) + HOUR > hourStart(Date.now()) - HOUR;
+      textEl.textContent = tooRecent
+        ? `${label}: עדיין לא עבר מספיק זמן מהפרסום כדי להשוות.`
+        : `${label}: אין נתוני צפיות בשעות שאחרי הפרסום, ולכן אי אפשר להשוות.`;
       return;
     }
     if (!before.hours) {

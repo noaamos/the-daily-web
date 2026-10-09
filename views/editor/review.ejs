@@ -53,6 +53,7 @@
     <h2 class="version-label">עריכת התוכן שהוגש</h2>
     <label for="f-title" class="field-name">כותרת</label>
     <input id="f-title" name="title" type="text" maxlength="200" value="<%= article.draft.title %>" required>
+    <p class="field-error" id="title-error" hidden>חובה למלא כותרת - אי אפשר לשמור כתבה בלי כותרת</p>
     <label for="f-summary" class="field-name">תקציר</label>
     <textarea id="f-summary" name="summary" rows="2" maxlength="500"><%= article.draft.summary %></textarea>
     <label for="f-body" class="field-name">תוכן (שורה ריקה = פסקה חדשה)</label>
