@@ -1,0 +1,86 @@
+/* Owner: member 4 - editor area (dashboard, review page, analytics) */
+
+.editor-page { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem; }
+.editor-intro { margin: -0.5rem 0 1.25rem; }
+
+/* ==== Status filter chips ==== */
+.status-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+.chip {
+  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.9rem;
+  background: var(--surface-soft); color: var(--text); border: 1px solid var(--border);
+  border-radius: 999px; font-size: 0.9rem; font-weight: 500; cursor: pointer;
+}
+.chip:hover { border-color: var(--text); }
+.chip.active { background: var(--text); color: #fff; border-color: var(--text); }
+.chip-count { font-size: 0.78rem; opacity: 0.7; }
+
+/* ==== Article table ==== */
+.article-table { width: 100%; border-collapse: collapse; }
+.article-table th {
+  text-align: start; font-size: 0.8rem; font-weight: 700; color: var(--muted);
+  padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--rule); white-space: nowrap;
+}
+.article-table td { padding: 0.75rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.article-table tbody tr:hover { background: var(--surface-soft); }
+.col-title { font-weight: 500; min-width: 14rem; }
+.col-title a { text-decoration: none; }
+.col-title a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.col-meta { color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
+
+.ed-cat {
+  display: inline-block; background: var(--cat-soft, var(--surface-soft)); color: var(--cat-color, var(--text));
+  font-size: 0.78rem; font-weight: 700; padding: 0.1rem 0.7rem; border-radius: 999px; white-space: nowrap;
+}
+
+/* Status badges */
+.badge { display: inline-block; font-size: 0.78rem; font-weight: 700; padding: 0.1rem 0.7rem; border-radius: 4px; white-space: nowrap; }
+.badge-pending   { background: #FFF1CC; color: #8A5A00; }
+.badge-draft     { background: #E8ECF2; color: #4A5468; }
+.badge-returned  { background: #FFE0DA; color: #B03A1E; }
+.badge-published { background: #D8F3E8; color: #1F7A55; }
+/* "update of a live article waiting for approval" */
+.badge-update { background: var(--nav-bg); color: #2F5FB8; margin-inline-start: 0.4rem; }
+
+/* ==== Row actions ==== */
+.col-actions { white-space: nowrap; }
+.row-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.row-actions .btn-accent, .row-actions .btn-outline { padding: 0.2rem 0.75rem; font-size: 0.85rem; }
+.btn-danger { color: #B03A1E; border-color: #F0C4BA; }
+.btn-danger:hover { border-color: #B03A1E; }
+
+/* inline "return for fixes" note */
+.return-form { display: flex; gap: 0.5rem; align-items: flex-start; margin-top: 0.6rem; }
+.return-form textarea {
+  flex: 1; min-width: 12rem; min-height: 3.2rem; padding: 0.4rem 0.6rem; font: inherit;
+  border: 1px solid var(--border); border-radius: var(--radius); resize: vertical;
+}
+.return-form .field-error { color: var(--accent); font-size: 0.8rem; margin: 0.2rem 0 0; }
+
+.list-status { margin: 1rem 0; text-align: center; }
+#load-more { display: block; margin: 1rem auto; }
+#load-more[hidden] { display: none; }
+
+/* ==== Toast ==== */
+.toast {
+  position: fixed; inset-block-end: 1.5rem; inset-inline: 0; margin-inline: auto; width: fit-content; max-width: 90vw;
+  background: var(--text); color: #fff; padding: 0.6rem 1.25rem; border-radius: var(--radius);
+  font-size: 0.95rem; box-shadow: 0 4px 16px rgba(26, 34, 51, 0.25); z-index: 10;
+}
+.toast.error { background: #B03A1E; color: #fff; }
+
+/* ==== Mobile: table rows become cards ==== */
+@media (max-width: 760px) {
+  .article-table, .article-table tbody, .article-table tr, .article-table td { display: block; width: 100%; }
+  .article-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .article-table tr {
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 0.5rem 0.75rem; margin-bottom: 0.75rem;
+  }
+  .article-table td { border-bottom: none; padding: 0.25rem 0; }
+  .article-table td[data-label]::before {
+    content: attr(data-label) ": "; color: var(--muted); font-size: 0.8rem; font-weight: 700;
+  }
+  .col-title { min-width: 0; }
+  .col-title::before { content: none; }
+  .col-actions { padding-top: 0.5rem; }
+  .return-form { flex-direction: column; align-items: stretch; }
+}
