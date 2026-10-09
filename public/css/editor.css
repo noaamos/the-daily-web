@@ -132,3 +132,41 @@
   .compare { grid-template-columns: 1fr; }
   .summary-stats { grid-template-columns: 1fr; }
 }
+
+/* ==== Review page ==== */
+.back-link { margin: 0 0 1rem; font-size: 0.9rem; }
+.back-link a { color: var(--muted); }
+.review-page .panel { margin-bottom: 1.25rem; }
+.review-head { padding-block: 1.4rem; }
+.review-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; align-items: center; }
+.review-meta .badge-update { margin-inline-start: 0; }
+.review-title { margin: 0.75rem 0 0; font-size: clamp(1.5rem, 3.4vw, 2.3rem); line-height: 1.2; }
+.editor-note { margin: 1rem 0 0; padding: 0.7rem 1rem; background: #FFF1CC; border-radius: 10px; color: #6B4600; }
+
+.action-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.action-row button { padding: 0.45rem 1.2rem; }
+.return-box, .edit-form { display: grid; gap: 0.4rem; }
+.return-box { margin-top: 1rem; }
+.return-box[hidden], .edit-form[hidden], .versions[hidden] { display: none; }
+.return-box textarea, .edit-form textarea, .edit-form input {
+  width: 100%; padding: 0.55rem 0.8rem; font: inherit; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+}
+.edit-form .field-name, .return-box .field-name { margin-top: 0.4rem; }
+.field-error[hidden] { display: none; }
+.field-error { color: var(--accent); font-size: 0.85rem; margin: 0; }
+
+.versions { display: grid; gap: 1.25rem; }
+.versions-two { grid-template-columns: 1fr 1fr; align-items: start; }
+.version { margin-bottom: 0 !important; }
+.version-label { font-family: var(--font-sans); font-size: 0.95rem; font-weight: 700; margin: 0 0 0.9rem; }
+.field-block { padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; border-radius: 10px; border-inline-start: 4px solid transparent; }
+.field-block.is-changed { background: #FFF8E1; border-inline-start-color: #E0A100; }
+.field-name { margin: 0 0 0.25rem; font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+.changed-tag { display: inline-block; margin-inline-start: 0.4rem; padding: 0 0.5rem; border-radius: 999px; background: #E0A100; color: #fff; font-size: 0.72rem; }
+.field-value { margin: 0 0 0.6rem; overflow-wrap: anywhere; }
+.version-title { font-family: var(--font-display); font-size: 1.3rem; line-height: 1.25; }
+.version-image { width: 100%; max-height: 16rem; object-fit: cover; border-radius: 10px; background: var(--border); }
+
+@media (max-width: 860px) {
+  .versions-two { grid-template-columns: 1fr; }
+}

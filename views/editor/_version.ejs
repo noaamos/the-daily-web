@@ -1,0 +1,25 @@
+<%# One version of an article (published or draft). Params: content, label, changed ({field: bool} or {}), fields %>
+<section class="panel version" aria-label="<%= label %>">
+  <h2 class="version-label"><%= label %></h2>
+  <% fields.forEach((f) => { %>
+    <%
+      const value = content[f.key] || '';
+      const isChanged = changed && changed[f.key];
+    %>
+    <div class="field-block<%= isChanged ? ' is-changed' : '' %>">
+      <p class="field-name"><%= f.label %><% if (isChanged) { %> <span class="changed-tag">שונה</span><% } %></p>
+      <% if (f.key === 'imageUrl') { %>
+        <% if (value) { %>
+          <img class="version-image" src="<%= value %>" alt="" width="800" height="450" loading="lazy">
+          <p class="field-value muted small"><%= value %></p>
+        <% } else { %><p class="field-value muted">אין תמונה</p><% } %>
+      <% } else if (f.key === 'body') { %>
+        <% if (value) { value.split(/\n\s*\n/).forEach((p) => { %><p class="field-value"><%= p %></p><% }); } else { %><p class="field-value muted">אין תוכן</p><% } %>
+      <% } else if (f.key === 'title') { %>
+        <p class="field-value version-title"><%= value || 'אין כותרת' %></p>
+      <% } else { %>
+        <p class="field-value"><%= value || '—' %></p>
+      <% } %>
+    </div>
+  <% }) %>
+</section>
