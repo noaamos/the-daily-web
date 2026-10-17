@@ -9,6 +9,7 @@ router.use(requireRole('editor'));
 router.get('/', c.dashboardPage);
 router.get('/articles/:id', c.reviewPage);     // shows published vs. new version side by side
 router.get('/analytics', c.analyticsPage);
+router.get('/users', (req, res) => res.render('editor/users', { title: 'ניהול משתמשים' })); // member 2 - uses /api/users
 
 // JSON API
 router.get('/api/articles', c.list);                     // ?status=&page=

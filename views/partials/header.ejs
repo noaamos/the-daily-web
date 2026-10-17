@@ -11,6 +11,7 @@
       <% if (user && user.role === 'editor') { %>
         <a href="/editor" class="masthead-link">ניהול</a>
         <a href="/editor/analytics" class="masthead-link">סטטיסטיקות</a>
+        <a href="/editor/users" class="masthead-link">משתמשים</a>
       <% } %>
       <% if (user) { %>
         <form action="/auth/logout" method="post" class="inline-form">
