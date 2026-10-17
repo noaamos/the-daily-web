@@ -13,6 +13,7 @@ const DeviceView = require('../models/DeviceView');
 const { STATUS, CATEGORIES } = require('../config/constants');
 const { seedViewStats } = require('./seedViews');
 const { seedPendingUpdates } = require('./seedUpdates');
+const { seedComments } = require('./seedComments');
 
 const ARTICLE_COUNT = 500;
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -61,6 +62,8 @@ async function seed() {
   const viewInfo = await seedViewStats(inserted, editor._id); // member 4: hourly views + publish history
   console.log(`Seeded ${updatesCount} pending updates of published articles`);
   console.log(`Seeded views: ${viewInfo.buckets} hourly buckets for ${viewInfo.articles} published articles`);
+  const commentInfo = await seedComments(inserted); // member 2: demo comments on the newest live articles
+  console.log(`Seeded ${commentInfo.comments} comments on ${commentInfo.articles} published articles`);
 
   console.log(`Seeded: 1 editor, ${reporters.length} reporters, ${ARTICLE_COUNT} articles`);
   console.log('Logins: editor / editor123, reporter1..3 / reporter123');
