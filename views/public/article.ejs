@@ -38,9 +38,19 @@
     <section id="comments" class="comments" data-article-id="<%= article._id %>">
       <h2>תגובות</h2>
       <!-- Owner: member 2 - list loads with Ajax (comments.js), new comments are appended without reloading -->
-      <ul id="comment-list"></ul>
-      <form id="comment-form">
-        <!-- TODO(member 2) -->
+      <ul id="comment-list" class="comment-list"></ul>
+      <p id="comment-list-status" class="comment-status" role="status">טוען תגובות…</p>
+
+      <form id="comment-form" class="comment-form" novalidate>
+        <h3>הוספת תגובה</h3>
+        <label for="comment-name">שם</label>
+        <input id="comment-name" name="authorName" type="text" maxlength="50" required autocomplete="name">
+        <label for="comment-text">תגובה</label>
+        <textarea id="comment-text" name="text" rows="4" maxlength="1000" required></textarea>
+        <div class="comment-form-footer">
+          <button type="submit" class="btn-accent">פרסום תגובה</button>
+          <p id="comment-form-status" class="comment-status" role="status"></p>
+        </div>
       </form>
     </section>
   </main>

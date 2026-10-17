@@ -148,6 +148,28 @@
 
 .comments { margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid var(--rule); }
 .comments h2 { margin: 0 0 1rem; font-size: 1.4rem; }
+/* Owner: member 2 - comment list + form (filled by public/js/comments.js) */
+.comment-list { list-style: none; padding: 0; margin: 0; max-width: 70ch; }
+.comment { padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
+.comment-meta { margin: 0 0 0.25rem; font-size: 0.85rem; color: var(--muted); }
+.comment-author { font-weight: 700; color: var(--text); }
+.comment-text { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.comment-status { margin: 0.5rem 0; font-size: 0.9rem; color: var(--muted); }
+.comment-status:empty { display: none; }
+.comment-status.is-error { color: var(--accent); font-weight: 500; }
+.comment-form {
+  display: flex; flex-direction: column; gap: 0.35rem; max-width: 70ch;
+  margin-top: 1.5rem; padding: 1rem; background: var(--surface-soft); border-radius: var(--radius);
+}
+.comment-form h3 { margin: 0 0 0.25rem; font-size: 1.15rem; }
+.comment-form label { font-size: 0.9rem; font-weight: 500; }
+.comment-form input, .comment-form textarea {
+  font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 4px; background: var(--surface);
+}
+.comment-form textarea { resize: vertical; }
+.comment-form-footer { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.4rem; }
+.comment-form-footer .comment-status { margin: 0; }
+.comment-form button:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ==== Weather widget (sidebar) ==== */
 .weather-main { display: flex; align-items: center; gap: 0.25rem; }
