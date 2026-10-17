@@ -27,17 +27,34 @@ function canTransition(from, to, role) {
  * @param {object} [opts]    - { note } editor note when returning for fixes
  * @returns the saved article. Throws an error with .status = 400/403 if not allowed.
  */
-// eslint-disable-next-line no-unused-vars
 async function transition(article, to, user, opts = {}) {
   if (!canTransition(article.status, to, user.role)) {
     const err = new Error('מעבר מצב לא מותר');
     err.status = 400;
     throw err;
   }
-  // TODO(member 3):
-  //  - reporter may only move their own articles (article.author equals user._id)
-  //  - -> returned: save opts.note into article.editorNote (required)
-  //  - -> published: copy draft into published, set first/lastPublishedAt, push to publishHistory
+  // TODO(member 3): reporter may only move their own articles (article.author equals user._id)
+
+  if (to === STATUS.RETURNED) {
+    const note = typeof opts.note === 'string' ? opts.note.trim() : '';
+    if (!note) {
+      const err = new Error('חובה לכתוב הערה לכתב');
+      err.status = 400;
+      throw err;
+    }
+    article.editorNote = note;
+  }
+
+  if (to === STATUS.PUBLISHED) {
+    // The draft becomes the version the public sees; the publish time is recorded for the Impact Analytics markers
+    const now = new Date();
+    article.published = article.draft.toObject();
+    if (!article.firstPublishedAt) article.firstPublishedAt = now;
+    article.lastPublishedAt = now;
+    article.publishHistory.push({ at: now, by: user._id });
+    article.editorNote = '';
+  }
+
   article.status = to;
   return article.save();
 }

@@ -1,16 +1,25 @@
-<%- include('../partials/head') %>
+<%- include('../partials/head', { styles: ['/css/editor.css'] }) %>
 <%- include('../partials/header') %>
-<main>
+<main class="editor-page">
   <!-- Owner: member 4 -->
-  <h1>ניהול כתבות</h1>
-  <select id="status-filter">
-    <option value="">כל המצבים</option>
-    <option value="pending">ממתינות לאישור</option>
-    <option value="draft">בהכנה</option>
-    <option value="returned">הוחזרו לתיקונים</option>
-    <option value="published">פורסמו</option>
-  </select>
-  <section id="all-articles"></section>
+  <h1 class="section-title">ניהול כתבות</h1>
+  <p class="muted editor-intro">כל הכתבות במערכת. סננו לפי מצב ופתחו כתבה שממתינה לאישור כדי לבדוק אותה, לאשר או להחזיר לכתב.</p>
+
+  <nav class="status-chips" id="status-filter" aria-label="סינון לפי מצב">
+    <button type="button" class="chip active" data-status="">הכל <span class="chip-count" data-count="total"></span></button>
+    <button type="button" class="chip" data-status="pending">ממתינות לאישור <span class="chip-count" data-count="pending"></span></button>
+    <button type="button" class="chip" data-status="draft">בהכנה <span class="chip-count" data-count="draft"></span></button>
+    <button type="button" class="chip" data-status="returned">הוחזרו לתיקונים <span class="chip-count" data-count="returned"></span></button>
+    <button type="button" class="chip" data-status="published">פורסמו <span class="chip-count" data-count="published"></span></button>
+  </nav>
+
+  <section id="all-articles" aria-live="polite">
+    <ul id="article-rows" class="article-list"></ul>
+    <p id="list-status" class="muted list-status">טוען...</p>
+    <button type="button" id="load-more" class="btn-outline" hidden>טען עוד</button>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </main>
 <script src="/js/editor.js" defer></script>
 <%- include('../partials/footer') %>

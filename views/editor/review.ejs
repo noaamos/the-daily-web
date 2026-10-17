@@ -1,0 +1,83 @@
+<%- include('../partials/head', { styles: ['/css/editor.css'] }) %>
+<%- include('../partials/header') %>
+<%
+  const fmt = (d) => d ? new Date(d).toLocaleString('he-IL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+  const isPublishedNow = article.status === 'published';
+  const shown = isPublishedNow ? article.published : article.draft;
+  const shownLabel = isPublishedNow ? 'הגרסה שפורסמה' : (article.status === 'pending' ? 'התוכן שהוגש' : 'התוכן הנוכחי (טיוטה)');
+%>
+<main class="editor-page review-page" data-article-id="<%= article._id %>">
+  <!-- Owner: member 4 -->
+  <p class="back-link"><a href="/editor">חזרה לרשימת הכתבות</a></p>
+
+  <header class="panel review-head">
+    <div class="review-meta">
+      <span class="badge badge-<%= article.status %>"><%= statusLabel %></span>
+      <% if (isUpdate) { %><span class="badge badge-update">עדכון לכתבה שפורסמה</span><% } %>
+      <span class="ed-cat" data-category="<%= article.category %>"><%= categoryLabel %></span>
+      <span class="muted small">כתב/ת: <%= authorName || '—' %></span>
+      <span class="muted small">עודכן: <%= fmt(article.updatedAt) %></span>
+      <% if (article.firstPublishedAt) { %><span class="muted small">פורסם לראשונה: <%= fmt(article.firstPublishedAt) %></span><% } %>
+    </div>
+    <h1 class="review-title"><%= shown && shown.title ? shown.title : '(ללא כותרת)' %></h1>
+    <% if (article.status === 'returned' && article.editorNote) { %>
+      <p class="editor-note"><strong>ההערה שנשלחה לכתב:</strong> <%= article.editorNote %></p>
+    <% } %>
+  </header>
+
+  <section class="panel actions-panel" aria-label="פעולות">
+    <% if (canAct) { %>
+      <div class="action-row" id="action-row">
+        <button type="button" class="btn-accent" id="approve-btn">אישור ופרסום</button>
+        <button type="button" class="btn-outline" id="return-btn">החזרה לתיקונים</button>
+        <button type="button" class="btn-outline" id="edit-btn">עריכה</button>
+        <button type="button" class="btn-outline btn-danger" id="delete-btn">מחיקה</button>
+      </div>
+      <div class="return-box" id="return-box" hidden>
+        <label for="return-note" class="field-name">הערה לכתב (חובה)</label>
+        <textarea id="return-note" maxlength="1000" placeholder="מה צריך לתקן?"></textarea>
+        <p class="field-error" id="return-error" hidden></p>
+        <div class="action-row">
+          <button type="button" class="btn-accent" id="return-send">שליחה לכתב</button>
+          <button type="button" class="btn-outline" id="return-cancel">ביטול</button>
+        </div>
+      </div>
+    <% } else { %>
+      <p class="muted">אפשר לאשר, להחזיר או לערוך רק כתבה שממתינה לאישור עורך. כאן אפשר רק לצפות או למחוק.</p>
+      <div class="action-row"><button type="button" class="btn-outline btn-danger" id="delete-btn">מחיקה</button></div>
+    <% } %>
+  </section>
+
+  <% if (canAct) { %>
+  <form class="panel edit-form" id="edit-form" hidden novalidate>
+    <h2 class="version-label">עריכת התוכן שהוגש</h2>
+    <label for="f-title" class="field-name">כותרת</label>
+    <input id="f-title" name="title" type="text" maxlength="200" value="<%= article.draft.title %>" required>
+    <p class="field-error" id="title-error" hidden>חובה למלא כותרת - אי אפשר לשמור כתבה בלי כותרת</p>
+    <label for="f-summary" class="field-name">תקציר</label>
+    <textarea id="f-summary" name="summary" rows="2" maxlength="500"><%= article.draft.summary %></textarea>
+    <label for="f-body" class="field-name">תוכן (שורה ריקה = פסקה חדשה)</label>
+    <textarea id="f-body" name="body" rows="12" maxlength="50000"><%= article.draft.body %></textarea>
+    <label for="f-image" class="field-name">קישור לתמונה</label>
+    <input id="f-image" name="imageUrl" type="url" maxlength="500" value="<%= article.draft.imageUrl %>" dir="ltr">
+    <p class="field-error" id="edit-error" hidden></p>
+    <div class="action-row">
+      <button type="submit" class="btn-accent">שמירת שינויים</button>
+      <button type="button" class="btn-outline" id="edit-cancel">ביטול</button>
+    </div>
+  </form>
+  <% } %>
+
+  <div class="versions<%= isUpdate ? ' versions-two' : '' %>" id="versions">
+    <% if (isUpdate) { %>
+      <%- include('_version', { content: article.published, label: 'פורסם כעת (מה שהקוראים רואים)', changed: {}, fields }) %>
+      <%- include('_version', { content: article.draft, label: 'ממתין לאישור (הגרסה החדשה)', changed, fields }) %>
+    <% } else { %>
+      <%- include('_version', { content: shown || {}, label: shownLabel, changed: {}, fields }) %>
+    <% } %>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</main>
+<script src="/js/review.js" defer></script>
+<%- include('../partials/footer') %>

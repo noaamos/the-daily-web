@@ -11,8 +11,10 @@ const Comment = require('../models/Comment');
 const ViewStat = require('../models/ViewStat');
 const DeviceView = require('../models/DeviceView');
 const { STATUS, CATEGORIES } = require('../config/constants');
+const { seedViewStats } = require('./seedViews');
+const { seedPendingUpdates } = require('./seedUpdates');
 
-const ARTICLE_COUNT = 40;
+const ARTICLE_COUNT = 500;
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 
@@ -53,8 +55,12 @@ async function seed() {
       viewCount: isPublished ? Math.floor(Math.random() * 5000) : 0,
     });
   }
-  await Article.insertMany(articles);
+  const inserted = await Article.insertMany(articles);
   await Article.syncIndexes();
+  const updatesCount = await seedPendingUpdates(inserted, editor._id); // member 4: pending updates of live articles
+  const viewInfo = await seedViewStats(inserted, editor._id); // member 4: hourly views + publish history
+  console.log(`Seeded ${updatesCount} pending updates of published articles`);
+  console.log(`Seeded views: ${viewInfo.buckets} hourly buckets for ${viewInfo.articles} published articles`);
 
   console.log(`Seeded: 1 editor, ${reporters.length} reporters, ${ARTICLE_COUNT} articles`);
   console.log('Logins: editor / editor123, reporter1..3 / reporter123');
