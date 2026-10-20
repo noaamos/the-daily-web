@@ -42,6 +42,7 @@
 
     const author = document.createElement('span');
     author.className = 'comment-author';
+    author.dir = 'auto'; // the page is RTL, but a name / comment may be written in English
     author.textContent = comment.authorName;
 
     const time = document.createElement('time');
@@ -53,6 +54,7 @@
 
     const text = document.createElement('p');
     text.className = 'comment-text';
+    text.dir = 'auto';
     text.textContent = comment.text;
 
     li.append(header, text);
