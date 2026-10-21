@@ -1,0 +1,45 @@
+<%- include('../partials/head', { styles: ['/css/editor.css', '/css/users.css'] }) %>
+<%- include('../partials/header') %>
+<main class="editor-page users-page" data-current-user-id="<%= user._id %>">
+  <!-- Owner: member 2 - user management screen, uses /api/users (routes/users.js) -->
+  <h1 class="section-title">ניהול משתמשים</h1>
+  <p class="muted editor-intro">כתבים ועורכים במערכת. אפשר לחפש, להוסיף משתמש, לערוך פרטים ולמחוק משתמש שאין לו כתבות.</p>
+
+  <div class="users-toolbar">
+    <label for="user-search" class="visually-hidden">חיפוש משתמשים</label>
+    <input id="user-search" class="users-search" type="search" placeholder="חיפוש לפי שם משתמש או שם תצוגה" autocomplete="off">
+    <button type="button" id="new-user-btn" class="btn-accent">משתמש חדש</button>
+  </div>
+
+  <form class="panel edit-form user-form" id="user-form" hidden novalidate>
+    <h2 class="panel-title" id="user-form-title">משתמש חדש</h2>
+    <label for="u-username" class="field-name">שם משתמש</label>
+    <input id="u-username" name="username" type="text" maxlength="30" dir="ltr" autocomplete="off" required>
+    <p class="muted small">3-30 תווים: אותיות באנגלית, ספרות, נקודה, מקף או קו תחתון</p>
+    <label for="u-display" class="field-name">שם תצוגה</label>
+    <input id="u-display" name="displayName" type="text" maxlength="50" autocomplete="off" required>
+    <label for="u-role" class="field-name">תפקיד</label>
+    <select id="u-role" name="role">
+      <option value="reporter">כתב</option>
+      <option value="editor">עורך</option>
+    </select>
+    <p class="muted small" id="u-role-note" hidden>לא ניתן לשנות את התפקיד של המשתמש המחובר</p>
+    <label for="u-password" class="field-name">סיסמה</label>
+    <input id="u-password" name="password" type="password" dir="ltr" autocomplete="new-password">
+    <p class="muted small" id="u-password-note">לפחות 6 תווים</p>
+    <p class="field-error" id="user-form-error" role="alert" hidden></p>
+    <div class="action-row">
+      <button type="submit" class="btn-accent" id="user-save">שמירה</button>
+      <button type="button" class="btn-outline" id="user-cancel">ביטול</button>
+    </div>
+  </form>
+
+  <section aria-live="polite">
+    <ul id="user-rows" class="article-list"></ul>
+    <p id="users-status" class="muted list-status">טוען...</p>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</main>
+<script src="/js/users.js" defer></script>
+<%- include('../partials/footer') %>
