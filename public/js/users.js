@@ -167,7 +167,8 @@
   }
 
   newBtn.addEventListener('click', () => openForm(null));
-  $('user-cancel').addEventListener('click', closeForm);
+  const cancelBtn = $('user-cancel');
+  cancelBtn.addEventListener('click', closeForm);
 
   // Reads the form. Returns { body } with the fields to send, or { error } with a Hebrew message.
   function readForm() {
@@ -205,6 +206,7 @@
     }
 
     saveBtn.disabled = true;
+    cancelBtn.disabled = true; // closing the form mid-save would hide the result of the request
     showFormError('');
     try {
       if (editing) {
@@ -221,6 +223,7 @@
       toast(err.message, true);
     } finally {
       saveBtn.disabled = false;
+      cancelBtn.disabled = false;
     }
   });
 
