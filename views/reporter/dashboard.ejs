@@ -1,10 +1,16 @@
-<%- include('../partials/head') %>
+<%- include('../partials/head', { styles: ['/css/reporter.css'] }) %>
 <%- include('../partials/header') %>
-<main>
+<main class="reporter-page">
   <!-- Owner: member 3 -->
-  <h1>הכתבות שלי</h1>
-  <button id="new-article">כתבה חדשה</button>
-  <section id="my-articles"></section>
+  <div class="page-head">
+    <h1 class="section-title">הכתבות שלי</h1>
+    <button type="button" id="new-article" class="btn-accent">כתבה חדשה</button>
+  </div>
+  <section id="my-articles" aria-live="polite">
+    <ul id="article-rows" class="article-list"></ul>
+    <p id="list-status" class="muted list-status">טוען...</p>
+    <button type="button" id="load-more" class="btn-outline" hidden>טען עוד</button>
+  </section>
 </main>
 <script src="/js/reporter.js" defer></script>
 <%- include('../partials/footer') %>
