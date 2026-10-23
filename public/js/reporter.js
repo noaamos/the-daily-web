@@ -5,9 +5,19 @@
   const rowsEl = document.getElementById('article-rows');
   const statusEl = document.getElementById('list-status');
   const moreBtn = document.getElementById('load-more');
+  const newBtn = document.getElementById('new-article');
+  const formEl = document.getElementById('new-article-form');
+  const categoryEl = document.getElementById('new-category');
+  const titleEl = document.getElementById('new-title');
+  const errorEl = document.getElementById('new-error');
+  const submitBtn = document.getElementById('new-submit');
+  const cancelBtn = document.getElementById('new-cancel');
   if (!rowsEl) return; // not the dashboard page
 
-  const state = { nextPage: 1, loading: false };
+  const state = { nextPage: 1, loading: false, creating: false };
+  // ids already shown: a new article is added at the top, which shifts the server's pages by one,
+  // so the next "load more" may return an article that is already on screen
+  const shownIds = new Set();
 
   // Builds an element without innerHTML, so text written by a reporter can never inject HTML or scripts
   function el(tag, props, children) {
@@ -26,13 +36,21 @@
     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
   });
 
-  async function fetchPage(page) {
-    const res = await fetch(`/reporter/api/articles?page=${page}`);
+  // One place for talking to the server: sends JSON, and turns an error answer into a thrown Error
+  async function api(method, url, body) {
+    const options = { method };
+    if (body !== undefined) {
+      options.headers = { 'Content-Type': 'application/json' };
+      options.body = JSON.stringify(body);
+    }
+    const res = await fetch(url, options);
     let data = {};
     try { data = await res.json(); } catch (e) { /* not JSON */ }
-    if (!res.ok) throw new Error(data.error || 'הטעינה נכשלה');
+    if (!res.ok) throw new Error(data.error || 'הפעולה נכשלה');
     return data;
   }
+
+  const fetchPage = (page) => api('GET', `/reporter/api/articles?page=${page}`);
 
   function buildRow(a) {
     const meta = el('div', { class: 'row-meta' }, [
@@ -52,7 +70,10 @@
     try {
       const data = await fetchPage(state.nextPage);
       state.nextPage += 1; // only after success, so a failed request can simply be retried
-      data.articles.forEach((a) => rowsEl.append(buildRow(a)));
+      data.articles.filter((a) => !shownIds.has(a.id)).forEach((a) => {
+        shownIds.add(a.id);
+        rowsEl.append(buildRow(a));
+      });
       moreBtn.hidden = !data.hasMore;
       statusEl.hidden = rowsEl.children.length > 0;
       if (!rowsEl.children.length) statusEl.textContent = 'עדיין אין כתבות. לחצו על "כתבה חדשה" כדי להתחיל.';
@@ -65,6 +86,47 @@
     }
   }
 
+  // ---- new article form ----
+  function showForm(show) {
+    formEl.hidden = !show;
+    newBtn.setAttribute('aria-expanded', String(show));
+    if (show) {
+      categoryEl.focus();
+    } else {
+      formEl.reset();
+      errorEl.hidden = true;
+    }
+  }
+
+  function showFormError(message) {
+    errorEl.textContent = message;
+    errorEl.hidden = false;
+  }
+
+  async function createArticle(event) {
+    event.preventDefault();
+    if (state.creating) return; // ignore a second submit while the request is running
+    if (!categoryEl.value) return showFormError('יש לבחור קטגוריה');
+    state.creating = true;
+    submitBtn.disabled = true;
+    errorEl.hidden = true;
+    try {
+      const article = await api('POST', '/reporter/api/articles', { category: categoryEl.value, title: titleEl.value });
+      shownIds.add(article.id);
+      rowsEl.prepend(buildRow(article)); // the newest article goes to the top of the list
+      statusEl.hidden = true;
+      showForm(false);
+    } catch (err) {
+      showFormError(err.message);
+    } finally {
+      state.creating = false;
+      submitBtn.disabled = false;
+    }
+  }
+
+  newBtn.addEventListener('click', () => showForm(formEl.hidden));
+  cancelBtn.addEventListener('click', () => showForm(false));
+  formEl.addEventListener('submit', createArticle);
   moreBtn.addEventListener('click', loadPage);
   loadPage();
 })();
