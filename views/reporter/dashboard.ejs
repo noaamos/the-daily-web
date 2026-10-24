@@ -1,10 +1,33 @@
-<%- include('../partials/head') %>
+<%- include('../partials/head', { styles: ['/css/reporter.css'] }) %>
 <%- include('../partials/header') %>
-<main>
+<main class="reporter-page">
   <!-- Owner: member 3 -->
-  <h1>הכתבות שלי</h1>
-  <button id="new-article">כתבה חדשה</button>
-  <section id="my-articles"></section>
+  <div class="page-head">
+    <h1 class="section-title">הכתבות שלי</h1>
+    <button type="button" id="new-article" class="btn-accent" aria-expanded="false" aria-controls="new-article-form">כתבה חדשה</button>
+  </div>
+
+  <p class="notice success" id="flash" role="status" hidden>הכתבה הוגשה לאישור העורך.</p>
+
+  <form id="new-article-form" class="new-article-form" hidden novalidate>
+    <label for="new-category">קטגוריה</label>
+    <select id="new-category" name="category" required>
+      <option value="">בחרו קטגוריה</option>
+      <% categories.forEach((cat) => { %><option value="<%= cat %>"><%= categoryLabels[cat] %></option><% }) %>
+    </select>
+    <label for="new-title">כותרת (אפשר להשלים אחר כך)</label>
+    <input id="new-title" name="title" type="text" maxlength="200" autocomplete="off">
+    <p class="field-error" id="new-error" role="alert" hidden></p>
+    <div class="form-actions">
+      <button type="submit" class="btn-accent" id="new-submit">יצירה</button>
+      <button type="button" class="btn-outline" id="new-cancel">ביטול</button>
+    </div>
+  </form>
+  <section id="my-articles" aria-live="polite">
+    <ul id="article-rows" class="article-list"></ul>
+    <p id="list-status" class="muted list-status">טוען...</p>
+    <button type="button" id="load-more" class="btn-outline" hidden>טען עוד</button>
+  </section>
 </main>
 <script src="/js/reporter.js" defer></script>
 <%- include('../partials/footer') %>

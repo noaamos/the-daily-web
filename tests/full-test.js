@@ -1,5 +1,6 @@
 // Full automated test run: seed data, public site, view counting, permissions, editor area, injection attempts,
 // load and server restart. Owner: member 4 (covers the whole system).
+// The reporter area (member 3) is tested in the function reporterTests(), sections R1 to R9.
 //
 // WARNING: this runs `npm run seed`, which DELETES all data in the database from MONGO_URI.
 //          Run it only against a development database:   npm test
@@ -24,6 +25,7 @@ const Comment = require(path.join(PROJECT, 'models/Comment'));
 const DeviceView = require(path.join(PROJECT, 'models/DeviceView'));
 const User = require(path.join(PROJECT, 'models/User'));
 const { getArticleStats } = require(path.join(PROJECT, 'services/viewService'));
+const articleService = require(path.join(PROJECT, 'services/articleService'));
 
 const PORT = 3005;
 const BASE = `http://localhost:${PORT}`;
@@ -73,6 +75,333 @@ function startServer() {
 async function stopServer() { server.kill(); await sleep(800); }
 
 const articleOf = (filter) => Article.findOne(filter).lean();
+
+// ---------------------------------------------------------------------------------------------------------------
+// Reporter area (member 3): the "my articles" list, creating, editing with autosave, submitting for approval,
+// the editor's note, and editing an article that is already published. It uses the same seed and the same server
+// as the rest of this file and runs from the main flow below (after the performance section).
+async function reporterTests() {
+  // ---- small helpers that read like the user's actions ----
+  let R1; let R2; let E; // session cookies of reporter1, reporter2 and the editor
+  const createArticle = async (cookie, title, category = 'tech') => (await call('POST', '/reporter/api/articles', { cookie, json: { category, title } })).body.id;
+  const save = (cookie, id, fields) => call('PUT', `/reporter/api/articles/${id}/draft`, { cookie, json: { title: '', summary: '', body: '', imageUrl: '', ...fields } });
+  const submit = (cookie, id, json) => call('POST', `/reporter/api/articles/${id}/submit`, { cookie, json });
+  const discard = (cookie, id) => call('POST', `/reporter/api/articles/${id}/discard`, { cookie });
+  const approve = (id) => call('POST', `/editor/api/articles/${id}/approve`, { cookie: E });
+  const sendBack = (id, note) => call('POST', `/editor/api/articles/${id}/return`, { cookie: E, json: { note } });
+  const editPage = (cookie, id) => call('GET', `/reporter/articles/${id}/edit`, { cookie });
+  // a new article with a title and a body (the minimum for submitting)
+  async function complete(cookie, title, extra = {}) {
+    const id = await createArticle(cookie, title);
+    await save(cookie, id, { title, body: `גוף הכתבה ${title}`, ...extra });
+    return id;
+  }
+  // the row of one article in the "my articles" list (walks the pages)
+  async function rowOf(cookie, id) {
+    for (let p = 1; p <= 60; p++) {
+      const r = await call('GET', `/reporter/api/articles?page=${p}`, { cookie });
+      const row = r.body.articles.find((a) => a.id === id);
+      if (row) return row;
+      if (!r.body.hasMore) return null;
+    }
+    return null;
+  }
+  const db = (id) => Article.findById(id).lean();
+  // everything about an article that must NOT change when a request is rejected
+  async function snap(id) {
+    const a = await db(id);
+    return JSON.stringify({ status: a.status, category: a.category, author: String(a.author), draft: a.draft, published: a.published, editorNote: a.editorNote, history: a.publishHistory.length });
+  }
+
+  const u1 = await User.findOne({ username: 'reporter1' }).lean();
+  const u2 = await User.findOne({ username: 'reporter2' }).lean();
+  R1 = (await login('reporter1', 'reporter123')).cookie;
+  R2 = (await login('reporter2', 'reporter123')).cookie;
+  E = (await login('editor', 'editor123')).cookie;
+
+  // ---------------------------------------------------------------- R1. my articles
+  sec('R1. Reporter: "My articles" list');
+  async function allRows(cookie) {
+    const rows = []; const sizes = []; let more = true;
+    for (let p = 1; more && p <= 60; p++) {
+      const r = await call('GET', `/reporter/api/articles?page=${p}`, { cookie });
+      rows.push(...r.body.articles); sizes.push(r.body.articles.length); more = r.body.hasMore;
+    }
+    return { rows, sizes };
+  }
+  const mine1 = await allRows(R1);
+  const mine2 = await allRows(R2);
+  check('pages add up to the reporter\'s articles in the DB', mine1.rows.length === (await Article.countDocuments({ author: u1._id })), `${mine1.rows.length}`);
+  check('no article appears twice', new Set(mine1.rows.map((a) => a.id)).size === mine1.rows.length);
+  check('every page except the last has exactly 20 rows', mine1.sizes.slice(0, -1).every((n) => n === 20));
+  check('two reporters never see the same article', !mine1.rows.some((a) => mine2.rows.some((b) => b.id === a.id)));
+  check('a reporter sees only his own articles (checked in the DB)', (await Article.countDocuments({ _id: { $in: mine1.rows.map((a) => a.id) }, author: { $ne: u1._id } })) === 0);
+  check('row shape', ['id', 'title', 'category', 'categoryLabel', 'status', 'statusLabel', 'editable', 'isUpdate', 'unsentChanges', 'editorNote', 'updatedAt'].every((k) => k in mine1.rows[0]));
+  check('only draft, returned and published articles are editable', mine1.rows.every((a) => a.editable === ['draft', 'returned', 'published'].includes(a.status)));
+  check('a note appears only on returned articles', mine1.rows.every((a) => (a.status === 'returned') === Boolean(a.editorNote)));
+  check('page beyond the last is empty', (await call('GET', '/reporter/api/articles?page=999', { cookie: R1 })).body.articles.length === 0);
+  for (const q of ['abc', '0', '-3', '1.5', '']) check(`page=${q || '(empty)'} -> 400`, (await call('GET', `/reporter/api/articles?page=${q}`, { cookie: R1 })).status === 400);
+  check('anonymous -> 401', (await call('GET', '/reporter/api/articles')).status === 401);
+  check('editor -> 403', (await call('GET', '/reporter/api/articles', { cookie: E })).status === 403);
+  check('dashboard page: anonymous is sent to the login', (await call('GET', '/reporter')).status === 302);
+  check('dashboard page: reporter 200, editor 403', (await call('GET', '/reporter', { cookie: R1 })).status === 200 && (await call('GET', '/reporter', { cookie: E })).status === 403);
+
+  // ---------------------------------------------------------------- R2. creating
+  sec('R2. Reporter: Creating an article');
+  const made = await call('POST', '/reporter/api/articles', { cookie: R1, json: { category: 'tech', title: '  כותרת חדשה  ' } });
+  check('create -> 201', made.status === 201, made.status);
+  const mdoc = await db(made.body.id);
+  check('saved as a draft of the logged-in reporter, title trimmed', mdoc.status === 'draft' && String(mdoc.author) === String(u1._id) && mdoc.draft.title === 'כותרת חדשה' && mdoc.published === null);
+  const noTitle = await call('POST', '/reporter/api/articles', { cookie: R1, json: { category: 'sports' } });
+  check('title is optional (shown as "no title")', noTitle.status === 201 && noTitle.body.title === '(ללא כותרת)');
+  const forged = await call('POST', '/reporter/api/articles', { cookie: R1, json: { category: 'culture', title: 'x', author: String(u2._id), status: 'published', published: { title: 'hack' }, viewCount: 999 } });
+  const fdoc = await db(forged.body.id);
+  check('author, status, published and counters sent by the client are ignored', fdoc.status === 'draft' && String(fdoc.author) === String(u1._id) && fdoc.published === null && fdoc.viewCount === 0);
+  const badBodies = [undefined, {}, { category: '' }, { category: 'xyz' }, { category: { $ne: null } }, { category: ['tech'] }, { category: 'tech', title: 5 }, { category: 'tech', title: { a: 1 } }, { category: 'tech', title: 'a'.repeat(201) }];
+  for (const b of badBodies) check(`invalid create ${JSON.stringify(b)} -> 400`.slice(0, 70), (await call('POST', '/reporter/api/articles', { cookie: R1, json: b })).status === 400);
+  check('title of exactly 200 characters is accepted', (await call('POST', '/reporter/api/articles', { cookie: R1, json: { category: 'tech', title: 'b'.repeat(200) } })).status === 201);
+  check('create: anonymous 401, editor 403', (await call('POST', '/reporter/api/articles', { json: { category: 'tech' } })).status === 401 && (await call('POST', '/reporter/api/articles', { cookie: E, json: { category: 'tech' } })).status === 403);
+
+  // ---------------------------------------------------------------- R3. editing and autosave
+  sec('R3. Reporter: Edit page and saving the draft (autosave endpoint)');
+  const D = await createArticle(R1, 'טיוטה לבדיקת עריכה');
+  let page = await editPage(R1, D);
+  check('own draft: edit page opens, filled from the server', page.status === 200 && page.text.includes('value="טיוטה לבדיקת עריכה"') && page.text.includes('id="save-btn"') && page.text.includes('id="submit-btn"'));
+  check('another reporter -> 403, editor -> 403, anonymous -> redirect', (await editPage(R2, D)).status === 403 && (await editPage(E, D)).status === 403 && (await editPage(undefined, D)).status === 302);
+  check('malformed id and unknown id -> 404', (await editPage(R1, 'abc')).status === 404 && (await editPage(R1, '64b000000000000000000000')).status === 404);
+
+  const good = { category: 'economy', title: '  כותרת חדשה  ', summary: '  תקציר חדש ', body: '  שורה 1\n\nשורה 2  \n', imageUrl: 'https://example.com/a.png' };
+  const saved = await save(R1, D, good);
+  const ddoc = await db(D);
+  check('valid save -> 200 with the save time', saved.status === 200 && saved.body.savedAt);
+  check('saved: title/summary trimmed, body kept exactly as typed, category and image stored',
+    ddoc.draft.title === 'כותרת חדשה' && ddoc.draft.summary === 'תקציר חדש' && ddoc.draft.body === good.body && ddoc.draft.imageUrl === good.imageUrl && ddoc.category === 'economy');
+  check('save does not touch status or published', ddoc.status === 'draft' && ddoc.published === null && ddoc.draftSavedAt);
+  page = await editPage(R1, D);
+  check('after a reload the page shows what was saved', page.text.includes('value="כותרת חדשה"') && page.text.includes('value="economy" selected'));
+  check('empty fields are allowed while writing', (await save(R1, D, { title: '', summary: '', body: '', imageUrl: '' })).status === 200);
+  check('category stays when it is not sent', (await db(D)).category === 'economy');
+  await save(R1, D, good);
+  const baseSnap = await snap(D);
+  const L = (c, n) => c.repeat(n);
+  const rejected = {
+    'missing fields': undefined, 'title is a number': { title: 5 }, 'title is an object': { title: { $ne: 1 } },
+    'title 201 characters': { title: L('a', 201) }, 'summary 501': { summary: L('a', 501) }, 'body 50001': { body: L('a', 50001) },
+    'image 501': { imageUrl: 'http://x.com/' + L('a', 495) }, 'javascript: link': { imageUrl: 'javascript:alert(1)' }, 'ftp link': { imageUrl: 'ftp://x.com/a.png' },
+    'unknown category': { category: 'xyz' }, 'category is an object': { category: { $ne: null } },
+  };
+  for (const [name, fields] of Object.entries(rejected)) {
+    const r = fields === undefined ? await call('PUT', `/reporter/api/articles/${D}/draft`, { cookie: R1, json: {} }) : await save(R1, D, { ...good, ...fields });
+    check(`rejected: ${name} -> 400`, r.status === 400, r.status);
+  }
+  check('nothing was changed by all the rejected saves', (await snap(D)) === baseSnap);
+  const forgedSave = await save(R1, D, { ...good, status: 'published', author: String(u2._id), published: { title: 'hack' }, editorNote: 'x', viewCount: 999 });
+  const fsnap = await db(D);
+  check('forged fields in a save are ignored', forgedSave.status === 200 && fsnap.status === 'draft' && fsnap.published === null && fsnap.editorNote === '' && String(fsnap.author) === String(u1._id) && fsnap.viewCount === 0);
+  const other = await createArticle(R2, 'של כתב אחר');
+  const otherSnap = await snap(other);
+  check('another reporter\'s article -> 403 and unchanged', (await save(R1, other, good)).status === 403 && (await snap(other)) === otherSnap);
+  check('editor -> 403, anonymous -> 401', (await save(E, D, good)).status === 403 && (await save(undefined, D, good)).status === 401);
+  check('unknown and malformed ids -> 404', (await save(R1, '64b000000000000000000000', good)).status === 404 && (await save(R1, 'abc', good)).status === 404);
+  await save(R1, D, { title: '<script>alert(1)</script>', body: '<img src=x onerror=alert(2)>' });
+  page = await editPage(R1, D);
+  check('markup typed by a reporter is shown escaped (no XSS)', page.text.includes('&lt;script&gt;alert(1)&lt;/script&gt;') && !page.text.includes('<script>alert(1)') && !page.text.includes('<img src=x onerror'));
+  check('a draft is private: not on the public site or in the feed', (await call('GET', `/articles/${D}`)).status === 404 && !(await call('GET', '/api/articles?q=%3Cscript')).text.includes(D));
+  const parallel = await Promise.all(Array.from({ length: 10 }, (_, i) => save(R1, D, { title: `parallel ${i}` })));
+  check('10 saves at the same time all succeed, one of them is the final state', parallel.every((r) => r.status === 200) && /^parallel \d$/.test((await db(D)).draft.title));
+  await save(R1, D, { ...good, title: 'שרד ריסטארט' });
+
+  // ---------------------------------------------------------------- R4. submitting
+  sec('R4. Reporter: Submitting for approval');
+  const A1 = await createArticle(R1, 'רק כותרת'); await save(R1, A1, { title: 'רק כותרת' });
+  let r = await submit(R1, A1);
+  check('title only -> 400, says what is missing, status unchanged', r.status === 400 && r.body.error.includes('תוכן') && (await db(A1)).status === 'draft');
+  const A2 = await createArticle(R1, ''); await save(R1, A2, { body: 'יש גוף' });
+  r = await submit(R1, A2); check('body only -> 400 (title missing)', r.status === 400 && r.body.error.includes('כותרת'));
+  const A3 = await createArticle(R1, ''); r = await submit(R1, A3); check('empty article -> 400 (both missing)', r.status === 400 && r.body.error.includes('כותרת ותוכן'));
+  const A4 = await createArticle(R1, 'רווחים'); await save(R1, A4, { title: 'רווחים', body: '    ' });
+  check('a body of spaces -> 400', (await submit(R1, A4)).status === 400);
+
+  const S = await complete(R1, 'הגשה תקינה');
+  const before = await db(S);
+  r = await submit(R1, S);
+  const after = await db(S);
+  check('submit -> 200 with the new status', r.status === 200 && r.body.status === 'pending' && r.body.statusLabel === 'ממתינה לאישור עורך');
+  check('only the status changed (draft, author, published untouched, no publish history)', after.status === 'pending' && JSON.stringify(after.draft) === JSON.stringify(before.draft) && after.published === null && String(after.author) === String(before.author) && after.publishHistory.length === 0);
+  check('after the submit the reporter cannot save (409), draft unchanged', (await save(R1, S, { title: 'שינוי' })).status === 409 && (await db(S)).draft.title === 'הגשה תקינה');
+  page = await editPage(R1, S);
+  check('the edit page is read-only (no submit button)', page.text.includes('<fieldset disabled>') && !page.text.includes('id="submit-btn"'));
+  check('a second submit -> 400', (await submit(R1, S)).status === 400);
+  const row = await rowOf(R1, S);
+  check('list: pending and not editable', row.status === 'pending' && row.editable === false && row.isUpdate === false);
+  const FG = await complete(R1, 'זיוף בהגשה');
+  await submit(R1, FG, { status: 'published', author: String(u2._id), published: { title: 'hack' } });
+  const fgdoc = await db(FG);
+  check('a forged request body cannot publish or change the owner', fgdoc.status === 'pending' && fgdoc.published === null && String(fgdoc.author) === String(u1._id));
+  const FO = await complete(R1, 'של reporter1'); const foSnap = await snap(FO);
+  check('another reporter -> 403 and unchanged', (await submit(R2, FO)).status === 403 && (await snap(FO)) === foSnap);
+  check('editor -> 403, anonymous -> 401, bad ids -> 404', (await submit(E, FO)).status === 403 && (await submit(undefined, FO)).status === 401 && (await submit(R1, 'abc')).status === 404 && (await submit(R1, '64b000000000000000000000')).status === 404);
+  const pendingSeed = await Article.findOne({ author: u1._id, status: 'pending', published: null, _id: { $ne: S } }).lean();
+  check('an article that is already pending cannot be submitted again (400)', (await submit(R1, String(pendingSeed._id))).status === 400);
+  // the ownership rule is also inside the service itself (not only in the controller)
+  const SV = await complete(R1, 'בדיקת שירות');
+  const svErr = async (user) => { try { await articleService.transition(await Article.findById(SV), 'pending', user); return 'no error'; } catch (e) { return `${e.status}`; } };
+  check('transition(): another reporter -> 403', (await svErr({ role: 'reporter', _id: u2._id, username: 'x' })) === '403' && (await db(SV)).status === 'draft');
+  check('transition(): an editor cannot move draft -> pending (400)', (await svErr({ role: 'editor', _id: u2._id, username: 'e' })) === '400' && (await db(SV)).status === 'draft');
+  check('transition(): the owner can', (await svErr({ role: 'reporter', _id: u1._id, username: 'o' })) === 'no error' && (await db(SV)).status === 'pending');
+  const PAR = await complete(R1, 'הגשות במקביל');
+  const parSubmits = await Promise.all(Array.from({ length: 10 }, () => submit(R1, PAR)));
+  check('10 submits at the same time: at least one succeeds, the others are refused, the result is "pending"', parSubmits.some((x) => x.status === 200) && parSubmits.every((x) => [200, 400, 409].includes(x.status)) && (await db(PAR)).status === 'pending');
+  // transition() checks the status again inside the save: a stale copy of the article must not overwrite a newer status
+  const STALE = await complete(R1, 'מצב ישן');
+  const staleDoc = await Article.findById(STALE); // loaded while the article is still a draft
+  await Article.updateOne({ _id: STALE }, { $set: { status: 'returned', editorNote: 'הערה' } }); // someone else moves it meanwhile
+  const staleErr = await articleService.transition(staleDoc, 'pending', { role: 'reporter', _id: u1._id, username: 'o' }).then(() => 'no error', (e) => `${e.status}`);
+  check('transition(): a stale copy cannot overwrite a newer status (409, nothing written)', staleErr === '409' && (await db(STALE)).status === 'returned');
+
+  // ---------------------------------------------------------------- R5. the editor and the public site
+  sec('R5. Reporter: The editor\'s side and the public site');
+  const TAG = `F-${Date.now()}`;
+  const F = await complete(R1, `${TAG} מאמר`); await submit(R1, F);
+  let list = await call('GET', `/editor/api/articles?status=pending&q=${encodeURIComponent(TAG)}`, { cookie: E });
+  check('the editor sees the submitted article in the pending list', list.body.articles.some((a) => a.id === F && a.isUpdate === false));
+  check('editor review page offers approve', (await call('GET', `/editor/articles/${F}`, { cookie: E })).text.includes('id="approve-btn"'));
+  check('before approval the public cannot see it (404)', (await call('GET', `/articles/${F}`)).status === 404);
+  check('editor approves -> 200', (await approve(F)).status === 200);
+  const pubDoc = await db(F);
+  check('published equals the submitted draft, publish time and history recorded', pubDoc.status === 'published' && pubDoc.published.title === pubDoc.draft.title && pubDoc.published.body === pubDoc.draft.body && pubDoc.firstPublishedAt && pubDoc.publishHistory.length === 1);
+  const pubPage = await call('GET', `/articles/${F}`);
+  check('the public page shows the title and the full text', pubPage.status === 200 && pubPage.text.includes(`${TAG} מאמר`) && pubPage.text.includes(`גוף הכתבה ${TAG} מאמר`));
+  check('the public feed lists it', (await call('GET', `/api/articles?q=${encodeURIComponent(TAG)}`)).text.includes(`${TAG} מאמר`));
+
+  // ---------------------------------------------------------------- R6. the editor's note
+  sec('R6. Reporter: Returned for fixes: the editor\'s note');
+  const seedReturned = await Article.findOne({ author: u1._id, status: 'returned', published: null }).lean();
+  const seedRow = await rowOf(R1, String(seedReturned._id));
+  check('a returned article shows the note in the list', seedRow.editorNote === seedReturned.editorNote && seedRow.editorNote.length > 0);
+  page = await editPage(R1, String(seedReturned._id));
+  check('the edit page shows the note box and the "submit again" button', page.text.includes('class="editor-note"') && page.text.includes(seedReturned.editorNote) && page.text.includes('הגשה מחדש לאישור'));
+  const G = await complete(R1, `${TAG} החזרה`); await submit(R1, G);
+  check('editor returns with a note -> 200', (await sendBack(G, 'הערה ראשונה')).status === 200);
+  check('the note is in the list and on the page', (await rowOf(R1, G)).editorNote === 'הערה ראשונה' && (await editPage(R1, G)).text.includes('הערה ראשונה'));
+  check('the reporter fixes the draft and submits again (returned -> pending)', (await save(R1, G, { title: `${TAG} החזרה`, body: 'גוף מתוקן' })).status === 200 && (await submit(R1, G)).status === 200);
+  check('while pending the old note is hidden (but still stored)', (await rowOf(R1, G)).editorNote === '' && !(await editPage(R1, G)).text.includes('class="editor-note"') && (await db(G)).editorNote === 'הערה ראשונה');
+  await sendBack(G, 'הערה שנייה');
+  check('a second return replaces the note', (await rowOf(R1, G)).editorNote === 'הערה שנייה' && !(await editPage(R1, G)).text.includes('הערה ראשונה'));
+  await submit(R1, G); await approve(G);
+  check('publishing clears the note', (await db(G)).editorNote === '' && (await rowOf(R1, G)).editorNote === '');
+  check('the public sees the corrected text', (await call('GET', `/articles/${G}`)).text.includes('גוף מתוקן'));
+  const X = await complete(R1, `${TAG} xss`); await submit(R1, X);
+  const hostile = '<script>alert(1)</script> <img src=x onerror=alert(2)>';
+  await sendBack(X, hostile);
+  page = await editPage(R1, X);
+  check('a hostile note is shown escaped', page.text.includes('&lt;script&gt;alert(1)&lt;/script&gt;') && !page.text.includes('<script>alert(1)') && (await rowOf(R1, X)).editorNote === hostile);
+  const N = await complete(R1, `${TAG} שורות`); await submit(R1, N);
+  await sendBack(N, 'שורה ראשונה\nשורה שנייה');
+  check('line breaks of a note are kept', (await rowOf(R1, N)).editorNote === 'שורה ראשונה\nשורה שנייה');
+  const LN = await complete(R1, `${TAG} ארוכה`); await submit(R1, LN);
+  check('a note of 1000 characters (the editor\'s limit) arrives complete', (await sendBack(LN, 'א'.repeat(1000))).status === 200 && (await rowOf(R1, LN)).editorNote.length === 1000);
+  check('another reporter cannot open the page of a returned article, nor see its row', (await editPage(R2, G)).status === 403 && (await rowOf(R2, X)) === null);
+
+  // ---------------------------------------------------------------- R7. editing a published article
+  sec('R7. Reporter: Editing an article that is already published');
+  check('the transition table allows published -> pending only for a reporter',
+    articleService.canTransition('published', 'pending', 'reporter') && !articleService.canTransition('published', 'pending', 'editor')
+    && !articleService.canTransition('published', 'draft', 'reporter') && !articleService.canTransition('published', 'returned', 'editor')
+    && !articleService.canTransition('published', 'published', 'editor') && articleService.canTransition('draft', 'pending', 'reporter'));
+
+  const T = `H-${Date.now()}`;
+  const P = await createArticle(R1, `${T} גרסה 1`, 'health');
+  await save(R1, P, { title: `${T} גרסה 1`, summary: 'תקציר 1', body: 'גוף גרסה 1' });
+  await submit(R1, P); await approve(P);
+  const v1 = await db(P);
+  const live = async () => (await call('GET', `/articles/${P}`)).text;
+  check('the article is live (version 1)', v1.status === 'published' && (await live()).includes('גוף גרסה 1'));
+  page = await editPage(R1, P);
+  check('the edit page of a published article is editable', page.status === 200 && page.text.includes('id="submit-btn"') && page.text.includes('הגשת העדכון לאישור') && page.text.includes('id="discard-btn"'));
+  check('  it explains that the public keeps the approved version, and the category is locked', page.text.includes('הציבור ממשיך לראות את הגרסה המאושרת') && /id="f-category" name="category" disabled/.test(page.text));
+  let prow = await rowOf(R1, P);
+  check('list: editable, no unsent changes, not an update yet', prow.status === 'published' && prow.editable === true && prow.unsentChanges === false && prow.isUpdate === false);
+
+  check('the reporter edits the draft -> 200', (await save(R1, P, { title: `${T} גרסה 2`, summary: 'תקציר 2', body: 'גוף גרסה 2', category: 'health' })).status === 200);
+  const edited = await db(P);
+  check('the draft changed, the published version did not', edited.draft.body === 'גוף גרסה 2' && edited.published.body === 'גוף גרסה 1' && edited.status === 'published');
+  check('the public still sees version 1', (await live()).includes('גוף גרסה 1') && !(await live()).includes('גוף גרסה 2'));
+  prow = await rowOf(R1, P);
+  check('list: "unsent changes"', prow.unsentChanges === true && prow.status === 'published');
+  const lockSnap = await snap(P);
+  check('changing the category of a published article -> 400, nothing changed', (await save(R1, P, { title: `${T} גרסה 2`, body: 'גוף גרסה 2', category: 'sports' })).status === 400 && (await snap(P)) === lockSnap);
+  check('sending the same category is fine and the category stays', (await save(R1, P, { title: `${T} גרסה 2`, summary: 'תקציר 2', body: 'גוף גרסה 2', category: 'health' })).status === 200 && (await db(P)).category === 'health');
+  check('the public feed still lists it under the old category', (await call('GET', `/api/articles?category=health&q=${encodeURIComponent(T)}`)).text.includes(`${T} גרסה 1`));
+
+  // cancel changes
+  check('cancel changes: another reporter 403, editor 403, anonymous 401', (await discard(R2, P)).status === 403 && (await discard(E, P)).status === 403 && (await discard(undefined, P)).status === 401);
+  check('cancel changes -> 200', (await discard(R1, P)).status === 200);
+  const reset = await db(P);
+  check('the draft is the published version again, published untouched', reset.draft.title === reset.published.title && reset.draft.body === 'גוף גרסה 1' && reset.published.body === 'גוף גרסה 1');
+  prow = await rowOf(R1, P);
+  check('list: no unsent changes after cancelling', prow.unsentChanges === false);
+  check('submitting an update without changes -> 400, status unchanged', (await submit(R1, P)).status === 400 && (await db(P)).status === 'published');
+  check('the same refusal for a reporter who never edited (no false update)', (await db(P)).publishHistory.length === 1);
+
+  // submit the update
+  await save(R1, P, { title: `${T} גרסה 2`, summary: 'תקציר 2', body: 'גוף גרסה 2' });
+  const viewsBefore = (await db(P)).viewCount;
+  r = await submit(R1, P);
+  const upd = await db(P);
+  check('submit the update -> 200, status pending', r.status === 200 && upd.status === 'pending');
+  check('the published version is untouched, the draft holds the update', upd.published.body === 'גוף גרסה 1' && upd.draft.body === 'גוף גרסה 2');
+  check('the public still sees version 1 while the update waits', (await live()).includes('גוף גרסה 1') && !(await live()).includes('גוף גרסה 2'));
+  prow = await rowOf(R1, P);
+  check('list: pending update, marked as an update, not editable', prow.status === 'pending' && prow.isUpdate === true && prow.editable === false);
+  check('the reporter cannot save or cancel while the update waits (409)', (await save(R1, P, { title: 'x', body: 'y' })).status === 409 && (await discard(R1, P)).status === 409);
+  page = await editPage(R1, P);
+  check('the edit page is read-only and says the update is waiting', page.text.includes('<fieldset disabled>') && page.text.includes('העדכון ממתין לאישור עורך'));
+  list = await call('GET', `/editor/api/articles?status=pending&q=${encodeURIComponent(T)}`, { cookie: E });
+  check('the editor sees it as an update of a live article', list.body.articles.some((a) => a.id === P && a.isUpdate === true));
+  const review = await call('GET', `/editor/articles/${P}`, { cookie: E });
+  check('the editor\'s review page shows both versions side by side', review.text.includes('versions-two') && review.text.includes('גוף גרסה 1') && review.text.includes('גוף גרסה 2'));
+
+  // the editor returns the update
+  check('the editor returns the update with a note -> 200', (await sendBack(P, 'צריך מקור לעדכון')).status === 200);
+  check('status returned, the public still sees version 1', (await db(P)).status === 'returned' && (await live()).includes('גוף גרסה 1'));
+  prow = await rowOf(R1, P);
+  check('list: returned update with the editor\'s note, editable', prow.status === 'returned' && prow.isUpdate === true && prow.editable === true && prow.editorNote === 'צריך מקור לעדכון');
+  page = await editPage(R1, P);
+  check('the edit page shows the note, the live-article explanation and the locked category', page.text.includes('צריך מקור לעדכון') && page.text.includes('זה עדכון לכתבה שפורסמה') && /name="category" disabled/.test(page.text));
+  check('category still cannot change while the update is returned', (await save(R1, P, { title: `${T} גרסה 2`, body: 'גוף גרסה 2', category: 'tech' })).status === 400);
+  check('the reporter fixes the update and submits again', (await save(R1, P, { title: `${T} גרסה 3`, summary: 'תקציר 3', body: 'גוף גרסה 3' })).status === 200 && (await submit(R1, P)).status === 200);
+  check('the public still sees version 1', (await live()).includes('גוף גרסה 1'));
+
+  // the editor approves the update
+  check('the editor approves the update -> 200', (await approve(P)).status === 200);
+  const v3 = await db(P);
+  check('status published, published = the update, draft = published', v3.status === 'published' && v3.published.body === 'גוף גרסה 3' && v3.draft.body === 'גוף גרסה 3' && v3.editorNote === '');
+  check('the public now sees the new version (and not the old one)', (await live()).includes('גוף גרסה 3') && !(await live()).includes('גוף גרסה 1'));
+  check('the update is recorded for the analytics chart (2 publish markers)', v3.publishHistory.length === 2 && v3.lastPublishedAt > v3.firstPublishedAt);
+  check('first publish date and view count are kept by the update', +v3.firstPublishedAt === +v1.firstPublishedAt && v3.viewCount >= viewsBefore);
+  prow = await rowOf(R1, P);
+  check('list: published again, no update mark, no unsent changes', prow.status === 'published' && prow.isUpdate === false && prow.unsentChanges === false);
+  const stats = await call('GET', `/editor/api/articles/${P}/stats`, { cookie: E });
+  check('the statistics endpoint lists both publish times', stats.status === 200 && stats.body.publishes.length === 2);
+  check('another reporter cannot edit or submit a published article of someone else', (await save(R2, P, { title: 'x', body: 'y' })).status === 403 && (await submit(R2, P)).status === 403);
+  const hp = await Promise.all(Array.from({ length: 10 }, () => discard(R1, P)));
+  check('10 "cancel changes" at the same time all succeed and change nothing', hp.every((x) => x.status === 200) && (await db(P)).published.body === 'גוף גרסה 3');
+
+  // ---------------------------------------------------------------- R8. restart
+  sec('R8. Reporter: Server restart');
+  await save(R1, D, { ...good, title: 'שרד ריסטארט' });
+  await stopServer(); await startServer();
+  check('the reporter is still logged in after a restart (no re-login)', (await call('GET', '/reporter', { cookie: R1 })).status === 200);
+  check('the saved draft is intact after a restart', (await editPage(R1, D)).text.includes('value="שרד ריסטארט"'));
+  check('saving still works after a restart', (await save(R1, D, { ...good, title: 'אחרי ריסטארט' })).status === 200);
+
+  // ---------------------------------------------------------------- R9. log
+  sec('R9. Reporter actions in the log');
+  const rlog = fs.readFileSync(LOG).subarray(logStart).toString('utf8').split('\n').filter(Boolean);
+  check('the log records reporter actions (create, submit, cancel changes)', rlog.some((l) => /Reporter reporter1 created article/.test(l)) && rlog.some((l) => /submitted article/.test(l)) && rlog.some((l) => /cancelled the changes/.test(l)));
+  check('the log records blocked access to another reporter\'s article', rlog.some((l) => /Blocked: reporter\d tried to access article/.test(l)));
+}
 
 (async () => {
   // ---------------------------------------------------------------- A. static checks
@@ -277,6 +606,43 @@ const articleOf = (filter) => Article.findOne(filter).lean();
   check('editor return: operator object note rejected', (await call('POST', `/editor/api/articles/${(await articleOf({ status: 'pending' }))._id}/return`, { cookie: E, json: { note: { $ne: '' } } })).status === 400);
   check('no server error from any injection attempt', !fs.readFileSync(LOG).subarray(logStart).toString('utf8').split('\n').some((l) => / ERROR /.test(l) && !/Weather fetch failed/.test(l)));
 
+  // ---------------------------------------------------------------- E3. comment moderation (PUT / DELETE)
+  sec('E3. Comment moderation API (PUT / DELETE /api/comments/:id)');
+  {
+    const mkComment = (text) => Comment.create({ article: published._id, authorName: 'מגיב', text, deviceId: 'e3-test' });
+    const url = (c) => `/api/comments/${c._id}`;
+    const same = async (c, text) => { const d = await Comment.findById(c._id).lean(); return Boolean(d) && d.text === text && d.authorName === 'מגיב'; };
+    const c1 = await mkComment('תגובה לבדיקה');
+    check('guest PUT comment -> 401, comment unchanged', (await call('PUT', url(c1), { json: { text: 'hacked' } })).status === 401 && await same(c1, 'תגובה לבדיקה'));
+    check('guest DELETE comment -> 401, comment still exists', (await call('DELETE', url(c1))).status === 401 && await same(c1, 'תגובה לבדיקה'));
+    check('reporter PUT comment -> 403, comment unchanged', (await call('PUT', url(c1), { cookie: R, json: { text: 'hacked' } })).status === 403 && await same(c1, 'תגובה לבדיקה'));
+    check('reporter DELETE comment -> 403, comment still exists', (await call('DELETE', url(c1), { cookie: R })).status === 403 && await same(c1, 'תגובה לבדיקה'));
+
+    const upd = await call('PUT', url(c1), { cookie: E, json: { text: '  <script>alert(1)</script> נערך  ' } });
+    check('editor PUT text -> 200 with the new (trimmed) text', upd.status === 200 && upd.body.text === '<script>alert(1)</script> נערך', `${upd.status} ${JSON.stringify(upd.body)}`);
+    check('PUT response does not expose deviceId', upd.body && !('deviceId' in upd.body) && String(upd.body._id) === String(c1._id));
+    check('edit is stored in the database as plain text', (await Comment.findById(c1._id).lean()).text === '<script>alert(1)</script> נערך');
+    const nameOnly = await call('PUT', url(c1), { cookie: E, json: { authorName: 'שם חדש' } });
+    check('editor PUT authorName only -> 200, text kept', nameOnly.status === 200 && nameOnly.body.authorName === 'שם חדש' && nameOnly.body.text === '<script>alert(1)</script> נערך');
+
+    const before = JSON.stringify(await Comment.findById(c1._id).lean());
+    const badBodies = [['empty text', { text: '   ' }], ['empty name', { authorName: '' }], ['text too long', { text: 'a'.repeat(1001) }], ['name too long', { authorName: 'a'.repeat(51) }],
+      ['text not a string', { text: 5 }], ['text operator object', { text: { $ne: '' } }]];
+    for (const [label, body] of badBodies) check(`editor PUT rejects: ${label} (400)`, (await call('PUT', url(c1), { cookie: E, json: body })).status === 400);
+    check('rejected edits did not change the comment', JSON.stringify(await Comment.findById(c1._id).lean()) === before);
+
+    const missing = '64b000000000000000000000';
+    check('PUT with a malformed id -> 400', (await call('PUT', '/api/comments/abc', { cookie: E, json: { text: 'x' } })).status === 400);
+    check('DELETE with a malformed id -> 400', (await call('DELETE', '/api/comments/abc', { cookie: E })).status === 400);
+    check('PUT on a comment that does not exist -> 404', (await call('PUT', `/api/comments/${missing}`, { cookie: E, json: { text: 'x' } })).status === 404);
+    check('DELETE on a comment that does not exist -> 404', (await call('DELETE', `/api/comments/${missing}`, { cookie: E })).status === 404);
+
+    const del = await call('DELETE', url(c1), { cookie: E });
+    check('editor DELETE comment -> 204', del.status === 204, del.status);
+    check('deleted comment is gone from the database and from the public list', !(await Comment.exists({ _id: c1._id })) && !(await call('GET', `/api/comments/${published._id}`)).body.comments.some((x) => String(x._id) === String(c1._id)));
+    check('DELETE again -> 404, and PUT on the deleted comment -> 404', (await call('DELETE', url(c1), { cookie: E })).status === 404 && (await call('PUT', url(c1), { cookie: E, json: { text: 'x' } })).status === 404);
+  }
+
   // ---------------------------------------------------------------- F. editor list API
   sec('F. Editor list API');
   const L = await call('GET', '/editor/api/articles', { cookie: E });
@@ -451,6 +817,8 @@ const articleOf = (filter) => Article.findOne(filter).lean();
   }
   const burst = await Promise.all(Array.from({ length: 200 }, () => call('GET', '/api/articles')));
   check('200 parallel feed requests all succeed', burst.every((r) => r.status === 200));
+
+  await reporterTests(); // sections R1 to R9 (defined above the main flow)
 
   // ---------------------------------------------------------------- K. restart persistence
   sec('K. Server restart');
