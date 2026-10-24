@@ -9,10 +9,12 @@ const TRANSITIONS = {
   [`${STATUS.RETURNED}->${STATUS.PENDING}`]:  { who: ROLES.REPORTER },
   [`${STATUS.PENDING}->${STATUS.PUBLISHED}`]: { who: ROLES.EDITOR },
   [`${STATUS.PENDING}->${STATUS.RETURNED}`]:  { who: ROLES.EDITOR },
-  // Editing an already-published article. The requirements do not define a transition out of "published", so this
-  // one is OUR proposal (to be confirmed by the lecturer): the status stays "published" while the reporter works on
-  // `draft`, and submitting the update moves published -> pending. The public keeps seeing `published` the whole time;
-  // the editor approves or returns it like any other pending article (the draft is copied to `published` on approval).
+  // Editing an already-published article. The requirements say the new version "goes through the same approval
+  // process" while the last approved version stays visible, and an editor only acts on "pending" articles
+  // (pending -> published / returned). So submitting an update moves published -> pending. This is the one transition
+  // that is not listed explicitly: it is how we understood that process. The status stays "published" while the
+  // reporter works on `draft`, and the public keeps seeing `published` the whole time; the editor approves or returns
+  // the update like any other pending article (the draft is copied to `published` on approval).
   [`${STATUS.PUBLISHED}->${STATUS.PENDING}`]: { who: ROLES.REPORTER },
 };
 
@@ -62,8 +64,24 @@ async function transition(article, to, user, opts = {}) {
     article.editorNote = '';
   }
 
+  // The status is checked again inside the save itself (same idea as the conditional update of autosave/discard):
+  // if another request moved the article after we loaded it (e.g. two submits at the same moment, or "cancel changes"
+  // and "submit"), nothing is written and the caller gets a 409 instead of silently overwriting the newer status.
+  const from = article.status;
+  article.$where = { status: from };
   article.status = to;
-  return article.save();
+  try {
+    return await article.save();
+  } catch (err) {
+    // DocumentNotFoundError: the status filter did not match. VersionError: the same, reported by mongoose
+    // when the save also modifies an array (publishHistory) and so adds the version check.
+    if (err.name === 'DocumentNotFoundError' || err.name === 'VersionError') {
+      const conflict = new Error('מצב הכתבה השתנה, אי אפשר לבצע את הפעולה');
+      conflict.status = 409;
+      throw conflict;
+    }
+    throw err;
+  }
 }
 
 module.exports = { TRANSITIONS, canTransition, transition };
