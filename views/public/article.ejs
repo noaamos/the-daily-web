@@ -35,7 +35,7 @@
       </div>
     </article>
 
-    <section id="comments" class="comments" data-article-id="<%= article._id %>">
+    <section id="comments" class="comments" data-article-id="<%= article._id %>" data-is-editor="<%= user && user.role === 'editor' ? '1' : '0' %>">
       <h2>תגובות</h2>
       <!-- Owner: member 2 - list loads with Ajax (comments.js), new comments are appended without reloading -->
       <ul id="comment-list" class="comment-list"></ul>
