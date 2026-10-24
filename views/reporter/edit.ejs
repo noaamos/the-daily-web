@@ -1,0 +1,50 @@
+<%- include('../partials/head', { styles: ['/css/reporter.css'] }) %>
+<%- include('../partials/header') %>
+<main class="reporter-page edit-page" data-article-id="<%= article._id %>" data-saved-at="<%= article.draftSavedAt ? article.draftSavedAt.toISOString() : '' %>">
+  <!-- Owner: member 3 -->
+  <p class="back-link"><a href="/reporter">חזרה לכתבות שלי</a></p>
+  <div class="page-head">
+    <h1 class="section-title">עריכת כתבה</h1>
+    <span class="badge badge-<%= article.status %>"><%= statusLabel %></span>
+  </div>
+
+  <% if (!canEdit) { %>
+    <p class="notice" role="status">
+      <%= article.status === 'pending' ? 'הכתבה ממתינה לאישור עורך, ולכן אי אפשר לערוך אותה כרגע.' : 'אי אפשר לערוך כתבה במצב הזה כרגע.' %>
+    </p>
+  <% } %>
+
+  <%# A disabled fieldset locks every field inside it (read-only view). The textarea tags start with a line break
+      on purpose: the browser drops the first one, so the text is shown exactly as it was saved. %>
+  <form id="edit-form" class="edit-form" novalidate>
+    <fieldset <%= canEdit ? '' : 'disabled' %>>
+      <label for="f-category">קטגוריה</label>
+      <select id="f-category" name="category">
+        <% categories.forEach((cat) => { %><option value="<%= cat %>"<%= article.category === cat ? ' selected' : '' %>><%= categoryLabels[cat] %></option><% }) %>
+      </select>
+
+      <label for="f-title">כותרת</label>
+      <input id="f-title" name="title" type="text" maxlength="200" value="<%= article.draft.title %>">
+
+      <label for="f-summary">תקציר</label>
+      <textarea id="f-summary" name="summary" rows="3" maxlength="500">
+<%= article.draft.summary %></textarea>
+
+      <label for="f-body">תוכן (שורה ריקה = פסקה חדשה)</label>
+      <textarea id="f-body" name="body" rows="14" maxlength="50000">
+<%= article.draft.body %></textarea>
+
+      <label for="f-image">קישור לתמונה</label>
+      <input id="f-image" name="imageUrl" type="url" maxlength="500" dir="ltr" value="<%= article.draft.imageUrl %>">
+    </fieldset>
+
+    <% if (canEdit) { %>
+      <div class="form-actions">
+        <button type="submit" class="btn-accent" id="save-btn">שמירה</button>
+        <span id="save-status" class="save-status" role="status" aria-live="polite"></span>
+      </div>
+    <% } %>
+  </form>
+</main>
+<% if (canEdit) { %><script src="/js/reporter-edit.js" defer></script><% } %>
+<%- include('../partials/footer') %>

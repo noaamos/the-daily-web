@@ -1,5 +1,6 @@
 // Owner: member 3
 // Every handler must check that the article belongs to req.user (article.author equals req.user._id).
+const mongoose = require('mongoose');
 const todo = require('./todo');
 const Article = require('../models/Article');
 const { httpError } = require('../middleware/errorHandler');
@@ -7,6 +8,18 @@ const logger = require('../config/logger');
 const { STATUS, CATEGORIES, STATUS_LABELS_HE, CATEGORY_LABELS_HE, PAGE_SIZE } = require('../config/constants');
 
 const MAX_TITLE_LENGTH = 200;
+
+// Statuses in which a reporter may change the draft. A published article is not editable yet:
+// how editing a live article works (task 7) still has to be agreed with the team and the lecturer.
+const EDITABLE = [STATUS.DRAFT, STATUS.RETURNED];
+
+// Content fields of the draft: Hebrew name (for error messages) and maximum length
+const DRAFT_FIELDS = {
+  title: { label: 'כותרת', max: MAX_TITLE_LENGTH },
+  summary: { label: 'תקציר', max: 500 },
+  body: { label: 'תוכן', max: 50000 },
+  imageUrl: { label: 'תמונה', max: 500 },
+};
 
 // The shape of one article in the "my articles" list (used by the list and by create)
 function toRow(a) {
@@ -17,15 +30,64 @@ function toRow(a) {
     categoryLabel: CATEGORY_LABELS_HE[a.category],
     status: a.status,
     statusLabel: STATUS_LABELS_HE[a.status],
+    editable: EDITABLE.includes(a.status),
     updatedAt: a.updatedAt,
   };
+}
+
+// Loads an article by id and makes sure it belongs to the logged-in reporter
+async function loadOwnArticle(req) {
+  const { id } = req.params;
+  if (!mongoose.isValidObjectId(id)) throw httpError(404, 'הכתבה לא נמצאה');
+  const article = await Article.findById(id);
+  if (!article) throw httpError(404, 'הכתבה לא נמצאה');
+  if (String(article.author) !== String(req.user._id)) {
+    logger.warn(`Blocked: ${req.user.username} tried to access article ${id} of another reporter`);
+    throw httpError(403, 'אין הרשאה לכתבה זו');
+  }
+  return article;
+}
+
+// Validates the draft the reporter sent and returns only the allowed fields.
+// The title may be empty here (the reporter is still writing); completeness is checked when submitting.
+// The body is kept exactly as typed; the other fields are trimmed.
+function cleanDraft(input) {
+  const out = {};
+  Object.entries(DRAFT_FIELDS).forEach(([key, { label, max }]) => {
+    const value = input[key];
+    if (typeof value !== 'string') throw httpError(400, `השדה "${label}" חסר או לא תקין`);
+    const text = key === 'body' ? value : value.trim();
+    if (text.length > max) throw httpError(400, `השדה "${label}" ארוך מדי (עד ${max} תווים)`);
+    out[key] = text;
+  });
+  if (out.imageUrl && !/^https?:\/\//i.test(out.imageUrl)) throw httpError(400, 'קישור התמונה חייב להתחיל ב-http או https');
+  if (input.category !== undefined) {
+    if (typeof input.category !== 'string' || !CATEGORIES.includes(input.category)) throw httpError(400, 'קטגוריה לא תקינה');
+    out.category = input.category;
+  }
+  return out;
 }
 
 exports.dashboardPage = (req, res) => {
   res.render('reporter/dashboard', { title: 'אזור הכתב' });
 };
 
-exports.editPage = todo('reporter.editPage');
+// GET /reporter/articles/:id/edit
+// The form is filled on the server, so a refresh always shows the last saved version.
+// An article that is waiting for approval or already published opens read-only.
+exports.editPage = async (req, res, next) => {
+  try {
+    const article = await loadOwnArticle(req);
+    res.render('reporter/edit', {
+      title: 'עריכת כתבה',
+      article: article.toObject(),
+      canEdit: EDITABLE.includes(article.status),
+      statusLabel: STATUS_LABELS_HE[article.status],
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
 // GET /reporter/api/articles?page=
 // The logged-in reporter's own articles, newest activity first. Returns { articles, hasMore }.
@@ -73,5 +135,36 @@ exports.create = async (req, res, next) => {
     next(err);
   }
 };
-exports.autosave = todo('reporter.autosave');
+
+// PUT /reporter/api/articles/:id/draft  body: { title, summary, body, imageUrl, category? }
+// Saves the whole draft in one go (the last request wins). Never touches `published` or `status`.
+exports.autosave = async (req, res, next) => {
+  try {
+    const article = await loadOwnArticle(req); // 404 / 403
+    if (!EDITABLE.includes(article.status)) throw httpError(409, 'אי אפשר לערוך כתבה במצב הזה');
+    const content = cleanDraft(req.body || {}); // 400 on invalid data
+
+    // Owner and status are checked again inside the update itself, so an action that changes the status
+    // at this very moment (e.g. an editor approving) can never be overwritten by an older save.
+    const saved = await Article.findOneAndUpdate(
+      { _id: article._id, author: req.user._id, status: { $in: EDITABLE } },
+      {
+        $set: {
+          'draft.title': content.title,
+          'draft.summary': content.summary,
+          'draft.body': content.body,
+          'draft.imageUrl': content.imageUrl,
+          ...(content.category && { category: content.category }),
+          draftSavedAt: new Date(),
+        },
+      },
+      { new: true, runValidators: true },
+    );
+    if (!saved) throw httpError(409, 'מצב הכתבה השתנה, אי אפשר לשמור');
+    res.json({ savedAt: saved.draftSavedAt });
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.submit = todo('reporter.submit');

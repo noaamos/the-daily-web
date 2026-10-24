@@ -18,6 +18,29 @@
 .reporter-page .field-error { margin: 0; font-size: 0.9rem; color: #B03A1E; }
 .reporter-page .field-error[hidden] { display: none; }
 
+/* ==== Edit page ==== */
+.reporter-page .back-link { margin: 0 0 0.5rem; font-size: 0.9rem; }
+.reporter-page .edit-form { max-width: 48rem; }
+.reporter-page .edit-form fieldset { display: grid; gap: 0.4rem; margin: 0; padding: 0; border: 0; min-width: 0; }
+.reporter-page .edit-form label { margin-top: 0.6rem; font-weight: 600; font-size: 0.9rem; }
+.reporter-page .edit-form input,
+.reporter-page .edit-form select,
+.reporter-page .edit-form textarea {
+  width: 100%; padding: 0.5rem 0.7rem; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); font: inherit;
+}
+.reporter-page .edit-form textarea { resize: vertical; line-height: 1.6; }
+.reporter-page .edit-form fieldset:disabled input,
+.reporter-page .edit-form fieldset:disabled select,
+.reporter-page .edit-form fieldset:disabled textarea { background: var(--surface-soft); color: var(--muted); }
+.reporter-page .edit-form .form-actions { align-items: center; margin-top: 1rem; }
+.reporter-page .notice {
+  margin: 0 0 1rem; padding: 0.7rem 1rem; max-width: 48rem; background: #FFF1CC; color: #8A5A00;
+  border-radius: var(--radius);
+}
+.reporter-page .save-status { font-size: 0.9rem; color: var(--muted); }
+.reporter-page .save-status.error { color: #B03A1E; }
+
 /* ==== Article list ==== */
 .reporter-page .article-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
 .reporter-page .article-row {
@@ -27,6 +50,8 @@
 .reporter-page .row-main { min-width: 0; }
 /* a very long word without spaces must wrap inside the row instead of stretching the page */
 .reporter-page .row-title { display: block; font-size: 1.05rem; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.reporter-page a.row-title { text-decoration: none; }
+.reporter-page a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 .reporter-page .row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; margin-top: 0.35rem; font-size: 0.85rem; color: var(--muted); }
 .reporter-page .cat-chip {
   display: inline-block; background: var(--cat-soft, var(--surface-soft)); color: var(--cat-color, var(--text));

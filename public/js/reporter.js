@@ -15,9 +15,6 @@
   if (!rowsEl) return; // not the dashboard page
 
   const state = { nextPage: 1, loading: false, creating: false };
-  // ids already shown: a new article is added at the top, which shifts the server's pages by one,
-  // so the next "load more" may return an article that is already on screen
-  const shownIds = new Set();
 
   // Builds an element without innerHTML, so text written by a reporter can never inject HTML or scripts
   function el(tag, props, children) {
@@ -43,7 +40,12 @@
       options.headers = { 'Content-Type': 'application/json' };
       options.body = JSON.stringify(body);
     }
-    const res = await fetch(url, options);
+    let res;
+    try {
+      res = await fetch(url, options);
+    } catch (e) {
+      throw new Error('אין חיבור לשרת. נסו שוב.'); // fetch() fails with an English browser message when the server cannot be reached
+    }
     let data = {};
     try { data = await res.json(); } catch (e) { /* not JSON */ }
     if (!res.ok) throw new Error(data.error || 'הפעולה נכשלה');
@@ -57,8 +59,12 @@
       el('span', { class: 'cat-chip', 'data-category': a.category, text: a.categoryLabel }),
       el('span', { text: `עודכן ${formatDate(a.updatedAt)}` }),
     ]);
+    // only an article that can be edited gets a link; the server decides this (`editable`)
+    const title = a.editable
+      ? el('a', { class: 'row-title', href: `/reporter/articles/${a.id}/edit`, text: a.title })
+      : el('span', { class: 'row-title', text: a.title });
     return el('li', { class: 'article-row', dataset: { id: a.id } }, [
-      el('div', { class: 'row-main' }, [el('span', { class: 'row-title', text: a.title }), meta]),
+      el('div', { class: 'row-main' }, [title, meta]),
       el('span', { class: `badge badge-${a.status}`, text: a.statusLabel }),
     ]);
   }
@@ -70,10 +76,7 @@
     try {
       const data = await fetchPage(state.nextPage);
       state.nextPage += 1; // only after success, so a failed request can simply be retried
-      data.articles.filter((a) => !shownIds.has(a.id)).forEach((a) => {
-        shownIds.add(a.id);
-        rowsEl.append(buildRow(a));
-      });
+      data.articles.forEach((a) => rowsEl.append(buildRow(a)));
       moreBtn.hidden = !data.hasMore;
       statusEl.hidden = rowsEl.children.length > 0;
       if (!rowsEl.children.length) statusEl.textContent = 'עדיין אין כתבות. לחצו על "כתבה חדשה" כדי להתחיל.';
@@ -112,13 +115,10 @@
     errorEl.hidden = true;
     try {
       const article = await api('POST', '/reporter/api/articles', { category: categoryEl.value, title: titleEl.value });
-      shownIds.add(article.id);
-      rowsEl.prepend(buildRow(article)); // the newest article goes to the top of the list
-      statusEl.hidden = true;
-      showForm(false);
+      // go straight to the edit page; the buttons stay locked until the browser leaves this page
+      window.location.assign(`/reporter/articles/${article.id}/edit`);
     } catch (err) {
       showFormError(err.message);
-    } finally {
       state.creating = false;
       submitBtn.disabled = false;
     }
