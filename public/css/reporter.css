@@ -38,6 +38,8 @@
   margin: 0 0 1rem; padding: 0.7rem 1rem; max-width: 48rem; background: #FFF1CC; color: #8A5A00;
   border-radius: var(--radius);
 }
+.reporter-page .notice[hidden] { display: none; }
+.reporter-page .notice.success { background: #D8F3E8; color: #1F7A55; }
 .reporter-page .field-hint { margin: 0; font-size: 0.85rem; color: #8A5A00; }
 .reporter-page .field-hint[hidden] { display: none; }
 .reporter-page .save-status { font-size: 0.9rem; color: var(--muted); }

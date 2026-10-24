@@ -16,6 +16,16 @@
 
   const state = { nextPage: 1, loading: false, creating: false };
 
+  // After submitting an article the edit page sends the reporter here with ?submitted=1: show a short notice, once
+  const flashEl = document.getElementById('flash');
+  const params = new URLSearchParams(window.location.search);
+  if (flashEl && params.get('submitted') === '1') {
+    flashEl.hidden = false;
+    params.delete('submitted');
+    const rest = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : ''));
+  }
+
   // Builds an element without innerHTML, so text written by a reporter can never inject HTML or scripts
   function el(tag, props, children) {
     const node = document.createElement(tag);

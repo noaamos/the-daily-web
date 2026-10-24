@@ -28,12 +28,17 @@ function canTransition(from, to, role) {
  * @returns the saved article. Throws an error with .status = 400/403 if not allowed.
  */
 async function transition(article, to, user, opts = {}) {
+  // A reporter may only move their own articles. (An editor may move any article, as the table above allows.)
+  if (user.role === ROLES.REPORTER && String(article.author) !== String(user._id)) {
+    const err = new Error('אין הרשאה לכתבה זו');
+    err.status = 403;
+    throw err;
+  }
   if (!canTransition(article.status, to, user.role)) {
     const err = new Error('מעבר מצב לא מותר');
     err.status = 400;
     throw err;
   }
-  // TODO(member 3): reporter may only move their own articles (article.author equals user._id)
 
   if (to === STATUS.RETURNED) {
     const note = typeof opts.note === 'string' ? opts.note.trim() : '';

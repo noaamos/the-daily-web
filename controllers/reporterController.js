@@ -1,8 +1,8 @@
 // Owner: member 3
 // Every handler must check that the article belongs to req.user (article.author equals req.user._id).
 const mongoose = require('mongoose');
-const todo = require('./todo');
 const Article = require('../models/Article');
+const { transition } = require('../services/articleService');
 const { httpError } = require('../middleware/errorHandler');
 const logger = require('../config/logger');
 const { STATUS, CATEGORIES, STATUS_LABELS_HE, CATEGORY_LABELS_HE, PAGE_SIZE } = require('../config/constants');
@@ -167,4 +167,22 @@ exports.autosave = async (req, res, next) => {
   }
 };
 
-exports.submit = todo('reporter.submit');
+
+// POST /reporter/api/articles/:id/submit
+// Moves the reporter's own article to "pending" (waiting for the editor). The article must be complete first.
+// Nothing is read from the request body: the status change is decided by transition() alone.
+exports.submit = async (req, res, next) => {
+  try {
+    const article = await loadOwnArticle(req); // 404 / 403
+    const missing = [];
+    if (!(article.draft.title || '').trim()) missing.push('כותרת');
+    if (!(article.draft.body || '').trim()) missing.push('תוכן');
+    if (missing.length) throw httpError(400, `לפני ההגשה יש למלא: ${missing.join(' ו')}`);
+
+    await transition(article, STATUS.PENDING, req.user); // 400 when the current status does not allow it
+    logger.info(`Reporter ${req.user.username} submitted article ${article._id}`);
+    res.json({ status: article.status, statusLabel: STATUS_LABELS_HE[article.status] });
+  } catch (err) {
+    next(err);
+  }
+};

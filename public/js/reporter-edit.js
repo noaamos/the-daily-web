@@ -9,6 +9,8 @@
   const statusEl = document.getElementById('save-status');
   const imageHintEl = document.getElementById('image-hint');
   const backLink = document.querySelector('.back-link a');
+  const submitBtn = document.getElementById('submit-btn');
+  const fieldset = form && form.querySelector('fieldset');
   if (!page || !form || !saveBtn) return; // read-only page: nothing to do
 
   const DEBOUNCE_MS = 1500;                    // quiet time after the last keystroke
@@ -153,6 +155,48 @@
     return !isDirty();
   }
 
+  // ---- submitting for approval ----
+  let submitting = false;
+
+  async function sendSubmit() {
+    let res;
+    try {
+      res = await fetch(`/reporter/api/articles/${page.dataset.articleId}/submit`, { method: 'POST' });
+    } catch (e) {
+      throw new Error('אין חיבור לשרת. נסו שוב.');
+    }
+    let data = {};
+    try { data = await res.json(); } catch (e) { /* not JSON */ }
+    if (!res.ok) throw new Error(data.error || 'ההגשה נכשלה');
+    return data;
+  }
+
+  // Save first, then submit: the server must hold the newest text before the article goes to the editor
+  async function submitForApproval() {
+    if (submitting) return;
+    if (!window.confirm('להגיש את הכתבה לאישור העורך?\nאחרי ההגשה אי אפשר לערוך אותה עד שהעורך יחזיר אותה או יאשר.')) return;
+    submitting = true;
+    submitBtn.disabled = true;
+    saveBtn.disabled = true;
+    fieldset.disabled = true; // nothing can be typed while the article is being sent
+    showStatus('שומר ושולח לאישור...');
+    try {
+      state.stopped = false; // a new attempt, even after an earlier autosave error
+      state.retries = 0;
+      if (!(await flush())) throw new Error('לא הצלחנו לשמור את השינויים האחרונים, לא ניתן להגיש עכשיו');
+      await sendSubmit();
+      state.stopped = true; // the article belongs to the editor now: no more autosaves, no leave warning
+      clearTimers();
+      window.location.assign('/reporter?submitted=1'); // the controls stay locked until the browser leaves the page
+    } catch (err) {
+      showStatus(err.message, true);
+      submitting = false;
+      submitBtn.disabled = false;
+      saveBtn.disabled = false;
+      fieldset.disabled = false;
+    }
+  }
+
   // ---- reacting to the reporter ----
   form.addEventListener('input', () => { // typing, paste, cut and the category list all fire "input"
     updateImageHint();
@@ -166,6 +210,8 @@
     state.retries = 0;
     flush();
   });
+
+  if (submitBtn) submitBtn.addEventListener('click', submitForApproval);
 
   // Going back to the list: finish saving first, so the list shows the newest data
   if (backLink) {
