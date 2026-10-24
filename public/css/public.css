@@ -4,6 +4,7 @@
 /* ==== Front page (top of the home page, inside the main column) ==== */
 /* Hero + "latest" on top, the strip of picks below (reordered with CSS only) */
 .front { margin-bottom: 2.5rem; display: flex; flex-direction: column; gap: 1.75rem; }
+.front[hidden] { display: none; }  /* feed.js hides the front page while a search / filter is active */
 .front-main { order: 1; }
 .front-strip { order: 2; }
 
@@ -96,16 +97,19 @@
   background: var(--surface); border-radius: var(--radius-pill); box-shadow: var(--shadow-card);
 }
 .feed-controls input, .feed-controls select { border-radius: var(--radius-pill); padding: 0.5rem 1.1rem; }
-.feed-controls input[type="search"] { flex: 1 1 220px; }
 .feed-controls select { cursor: pointer; }
 
 /* ==== Feed grid ==== */
 .feed { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: var(--gap); }
+/* Keep the feed area tall while a new search / sort / filter result loads, so the page does not collapse and jump */
+.feed { min-height: 60vh; align-content: start; }
+.feed[aria-busy='true'] { opacity: 0.5; transition: opacity 0.15s; }  /* old results stay visible, dimmed, while new ones load */
+@keyframes card-in { from { opacity: 0; transform: translateY(8px); } }
 
 .card {
   display: flex; flex-direction: column; padding: 0.75rem;
   background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
-  transition: box-shadow 0.2s, transform 0.2s;
+  transition: box-shadow 0.2s, transform 0.2s; animation: card-in 0.3s ease both;
 }
 .card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
 .card-link { display: flex; flex-direction: column; height: 100%; text-decoration: none; color: inherit; }
@@ -140,7 +144,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card, .card-image, .strip-item, .front-featured img { transition: none; }
+  .card, .card-image, .strip-item, .front-featured img { transition: none; animation: none; }
   .card:hover, .card:hover .card-image, .strip-item:hover, .front-featured:hover img { transform: none; }
 }
 

@@ -97,6 +97,8 @@
     const controller = new AbortController();
     state.controller = controller;
     setStatus('טוען כתבות...');
+    // Old cards stay on screen while a new search loads; CSS dims them (aria-busy)
+    if (state.page === 0 && feedEl.children.length) feedEl.setAttribute('aria-busy', 'true');
 
     try {
       const res = await fetch(buildUrl(state.page + 1), { signal: controller.signal });
@@ -106,7 +108,13 @@
 
       const fragment = document.createDocumentFragment();
       data.articles.forEach((article) => fragment.appendChild(renderCard(article)));
-      feedEl.appendChild(fragment);
+      if (state.page === 0) {
+        // First page of a new search / filter: swap the old cards for the new ones in one step (no empty flash)
+        feedEl.replaceChildren(fragment);
+        if (feedTitle.getBoundingClientRect().top < 0) feedTitle.scrollIntoView({ block: 'start' });
+      } else {
+        feedEl.appendChild(fragment);
+      }
 
       state.page = data.page;
       state.hasMore = data.hasMore;
@@ -122,7 +130,10 @@
       showRetry();
     } finally {
       // Only the current request may clear the flag - an old aborted one must not touch the new one's state
-      if (controller === state.controller) state.loading = false;
+      if (controller === state.controller) {
+        state.loading = false;
+        feedEl.removeAttribute('aria-busy');
+      }
     }
 
     // The screen may still not be full (e.g. a tall monitor) - keep loading until it is
@@ -166,8 +177,7 @@
     state.hasMore = true;
     state.loading = false;
     state.snapshot = null;
-    feedEl.replaceChildren();
-    loadNextPage();
+    loadNextPage(); // the first page replaces the cards that are on screen once it arrives
   }
 
   function isSentinelVisible() {
