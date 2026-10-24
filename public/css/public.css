@@ -157,6 +157,16 @@
 .comment-status { margin: 0.5rem 0; font-size: 0.9rem; color: var(--muted); }
 .comment-status:empty { display: none; }
 .comment-status.is-error { color: var(--accent); font-weight: 500; }
+/* editor only: edit / delete buttons and the edit form of one comment */
+.comment-actions { display: flex; gap: 0.5rem; margin-top: 0.4rem; }
+.comment-action { padding: 0.25rem 0.8rem; font-size: 0.85rem; cursor: pointer; }
+.comment-action:disabled { opacity: 0.6; cursor: not-allowed; }
+.comment-delete:hover { border-color: var(--accent); color: var(--accent); }
+.comment-edit { display: flex; flex-direction: column; gap: 0.4rem; }
+.comment-edit input, .comment-edit textarea {
+  padding: 0.5rem 0.8rem; border: 1px solid var(--border); border-radius: 4px; background: #fff; color: var(--text); font: inherit;
+}
+.comment-edit textarea { resize: vertical; }
 .comment-form {
   display: flex; flex-direction: column; gap: 0.35rem; max-width: 70ch;
   margin-top: 1.5rem; padding: 1rem; background: var(--surface-soft); border-radius: var(--radius);
