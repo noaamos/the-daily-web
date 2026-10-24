@@ -1,7 +1,5 @@
 // Owner: member 2
 // Starter seed so everyone has data from day one. Run: npm run seed  (DELETES existing data!)
-// TODO(member 2): grow to 500+ articles, comments, articles updated several times after publishing,
-//                 and view stats over time (coordinate the ViewStat format with member 4).
 require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -14,6 +12,7 @@ const { STATUS } = require('../config/constants');
 const { NEWS } = require('./newsArticles');
 const { seedViewStats } = require('./seedViews');
 const { seedPendingUpdates } = require('./seedUpdates');
+const { seedComments } = require('./seedComments');
 
 const ARTICLE_COUNT = 500;
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -61,6 +60,8 @@ async function seed() {
   await Article.syncIndexes();
   const updatesCount = await seedPendingUpdates(inserted, editor._id); // member 4: pending updates of live articles
   const viewInfo = await seedViewStats(inserted, editor._id); // member 4: hourly views + publish history
+  const commentsCount = await seedComments(inserted); // runs after seedViewStats: it fills in firstPublishedAt for live updates
+  console.log(`Seeded ${commentsCount} comments`);
   console.log(`Seeded ${updatesCount} pending updates of published articles`);
   console.log(`Seeded views: ${viewInfo.buckets} hourly buckets for ${viewInfo.articles} published articles`);
 
