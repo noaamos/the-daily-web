@@ -94,6 +94,30 @@
     }
   }
 
+  // Back to the normal view of a comment (cancel, Escape, after saving). The focus goes to its "edit" button,
+  // so a keyboard user stays at the same place in the list.
+  function backToView(li, comment) {
+    showView(li, comment);
+    const editBtn = li.querySelector('.comment-action');
+    if (editBtn) editBtn.focus();
+  }
+
+  // Takes a comment out of the list (deleted here, or already gone on the server) and shows the matching message:
+  // the usual empty message when it was the last one, otherwise `message`. The focus moves to the next comment's
+  // "edit" button, else the previous one's, else the name field of the form.
+  function removeFromList(li, message, isError) {
+    const neighbour = li.nextElementSibling || li.previousElementSibling;
+    li.remove();
+    updateEmptyMessage();
+    if (listEl.children.length === 0) {
+      nameInput.focus();
+      return;
+    }
+    setStatus(listStatus, message, isError);
+    const editBtn = neighbour && neighbour.querySelector('.comment-action');
+    if (editBtn) editBtn.focus();
+  }
+
   // Editor: replaces the comment with a small form (name + text). Values are set with .value, never as HTML.
   function showEditForm(li, comment) {
     const form = document.createElement('form');
@@ -128,7 +152,13 @@
     li.replaceChildren(form);
     text.focus();
 
-    cancelBtn.addEventListener('click', () => showView(li, comment));
+    cancelBtn.addEventListener('click', () => backToView(li, comment));
+    // Escape cancels the edit (not while the request is running)
+    form.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || saveBtn.disabled) return;
+      e.preventDefault();
+      backToView(li, comment);
+    });
 
     // PUT /api/comments/:id { authorName, text } -> the updated comment
     form.addEventListener('submit', async (e) => {
@@ -149,15 +179,13 @@
           body: JSON.stringify({ authorName, text: newText }),
         });
         if (res.status === 404) { // somebody already deleted it
-          li.remove();
-          updateEmptyMessage();
-          setStatus(listStatus, 'התגובה כבר לא קיימת (נמחקה).', true);
+          removeFromList(li, 'התגובה כבר לא קיימת (נמחקה).', true);
           return;
         }
         if (!res.ok) {
           setStatus(status, await readError(res), true); // the typed text stays in the form
         } else {
-          showView(li, await res.json());
+          backToView(li, await res.json());
           setStatus(li.querySelector('.comment-status'), 'התגובה עודכנה.');
           return;
         }
@@ -177,9 +205,7 @@
     try {
       const res = await fetch('/api/comments/' + encodeURIComponent(comment._id), { method: 'DELETE' });
       if (res.ok || res.status === 404) { // 404: already gone, the list should not show it either
-        li.remove();
-        updateEmptyMessage();
-        if (listEl.children.length > 0) setStatus(listStatus, res.ok ? 'התגובה נמחקה.' : 'התגובה כבר לא קיימת (נמחקה).');
+        removeFromList(li, res.ok ? 'התגובה נמחקה.' : 'התגובה כבר לא קיימת (נמחקה).');
         return;
       }
       setStatus(status, await readError(res), true);

@@ -600,6 +600,43 @@ async function reporterTests() {
   check('editor return: operator object note rejected', (await call('POST', `/editor/api/articles/${(await articleOf({ status: 'pending' }))._id}/return`, { cookie: E, json: { note: { $ne: '' } } })).status === 400);
   check('no server error from any injection attempt', !fs.readFileSync(LOG).subarray(logStart).toString('utf8').split('\n').some((l) => / ERROR /.test(l) && !/Weather fetch failed/.test(l)));
 
+  // ---------------------------------------------------------------- E3. comment moderation (PUT / DELETE)
+  sec('E3. Comment moderation API (PUT / DELETE /api/comments/:id)');
+  {
+    const mkComment = (text) => Comment.create({ article: published._id, authorName: 'מגיב', text, deviceId: 'e3-test' });
+    const url = (c) => `/api/comments/${c._id}`;
+    const same = async (c, text) => { const d = await Comment.findById(c._id).lean(); return Boolean(d) && d.text === text && d.authorName === 'מגיב'; };
+    const c1 = await mkComment('תגובה לבדיקה');
+    check('guest PUT comment -> 401, comment unchanged', (await call('PUT', url(c1), { json: { text: 'hacked' } })).status === 401 && await same(c1, 'תגובה לבדיקה'));
+    check('guest DELETE comment -> 401, comment still exists', (await call('DELETE', url(c1))).status === 401 && await same(c1, 'תגובה לבדיקה'));
+    check('reporter PUT comment -> 403, comment unchanged', (await call('PUT', url(c1), { cookie: R, json: { text: 'hacked' } })).status === 403 && await same(c1, 'תגובה לבדיקה'));
+    check('reporter DELETE comment -> 403, comment still exists', (await call('DELETE', url(c1), { cookie: R })).status === 403 && await same(c1, 'תגובה לבדיקה'));
+
+    const upd = await call('PUT', url(c1), { cookie: E, json: { text: '  <script>alert(1)</script> נערך  ' } });
+    check('editor PUT text -> 200 with the new (trimmed) text', upd.status === 200 && upd.body.text === '<script>alert(1)</script> נערך', `${upd.status} ${JSON.stringify(upd.body)}`);
+    check('PUT response does not expose deviceId', upd.body && !('deviceId' in upd.body) && String(upd.body._id) === String(c1._id));
+    check('edit is stored in the database as plain text', (await Comment.findById(c1._id).lean()).text === '<script>alert(1)</script> נערך');
+    const nameOnly = await call('PUT', url(c1), { cookie: E, json: { authorName: 'שם חדש' } });
+    check('editor PUT authorName only -> 200, text kept', nameOnly.status === 200 && nameOnly.body.authorName === 'שם חדש' && nameOnly.body.text === '<script>alert(1)</script> נערך');
+
+    const before = JSON.stringify(await Comment.findById(c1._id).lean());
+    const badBodies = [['empty text', { text: '   ' }], ['empty name', { authorName: '' }], ['text too long', { text: 'a'.repeat(1001) }], ['name too long', { authorName: 'a'.repeat(51) }],
+      ['text not a string', { text: 5 }], ['text operator object', { text: { $ne: '' } }]];
+    for (const [label, body] of badBodies) check(`editor PUT rejects: ${label} (400)`, (await call('PUT', url(c1), { cookie: E, json: body })).status === 400);
+    check('rejected edits did not change the comment', JSON.stringify(await Comment.findById(c1._id).lean()) === before);
+
+    const missing = '64b000000000000000000000';
+    check('PUT with a malformed id -> 400', (await call('PUT', '/api/comments/abc', { cookie: E, json: { text: 'x' } })).status === 400);
+    check('DELETE with a malformed id -> 400', (await call('DELETE', '/api/comments/abc', { cookie: E })).status === 400);
+    check('PUT on a comment that does not exist -> 404', (await call('PUT', `/api/comments/${missing}`, { cookie: E, json: { text: 'x' } })).status === 404);
+    check('DELETE on a comment that does not exist -> 404', (await call('DELETE', `/api/comments/${missing}`, { cookie: E })).status === 404);
+
+    const del = await call('DELETE', url(c1), { cookie: E });
+    check('editor DELETE comment -> 204', del.status === 204, del.status);
+    check('deleted comment is gone from the database and from the public list', !(await Comment.exists({ _id: c1._id })) && !(await call('GET', `/api/comments/${published._id}`)).body.comments.some((x) => String(x._id) === String(c1._id)));
+    check('DELETE again -> 404, and PUT on the deleted comment -> 404', (await call('DELETE', url(c1), { cookie: E })).status === 404 && (await call('PUT', url(c1), { cookie: E, json: { text: 'x' } })).status === 404);
+  }
+
   // ---------------------------------------------------------------- F. editor list API
   sec('F. Editor list API');
   const L = await call('GET', '/editor/api/articles', { cookie: E });
