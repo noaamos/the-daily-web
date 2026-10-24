@@ -251,7 +251,13 @@ async function reporterTests() {
   check('transition(): the owner can', (await svErr({ role: 'reporter', _id: u1._id, username: 'o' })) === 'no error' && (await db(SV)).status === 'pending');
   const PAR = await complete(R1, 'הגשות במקביל');
   const parSubmits = await Promise.all(Array.from({ length: 10 }, () => submit(R1, PAR)));
-  check('10 submits at the same time: at least one succeeds, the others are refused, the result is "pending"', parSubmits.some((x) => x.status === 200) && parSubmits.every((x) => [200, 400].includes(x.status)) && (await db(PAR)).status === 'pending');
+  check('10 submits at the same time: at least one succeeds, the others are refused, the result is "pending"', parSubmits.some((x) => x.status === 200) && parSubmits.every((x) => [200, 400, 409].includes(x.status)) && (await db(PAR)).status === 'pending');
+  // transition() checks the status again inside the save: a stale copy of the article must not overwrite a newer status
+  const STALE = await complete(R1, 'מצב ישן');
+  const staleDoc = await Article.findById(STALE); // loaded while the article is still a draft
+  await Article.updateOne({ _id: STALE }, { $set: { status: 'returned', editorNote: 'הערה' } }); // someone else moves it meanwhile
+  const staleErr = await articleService.transition(staleDoc, 'pending', { role: 'reporter', _id: u1._id, username: 'o' }).then(() => 'no error', (e) => `${e.status}`);
+  check('transition(): a stale copy cannot overwrite a newer status (409, nothing written)', staleErr === '409' && (await db(STALE)).status === 'returned');
 
   // ---------------------------------------------------------------- R5. the editor and the public site
   sec('R5. Reporter: The editor\'s side and the public site');
