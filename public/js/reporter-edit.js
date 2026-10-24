@@ -10,6 +10,7 @@
   const imageHintEl = document.getElementById('image-hint');
   const backLink = document.querySelector('.back-link a');
   const submitBtn = document.getElementById('submit-btn');
+  const discardBtn = document.getElementById('discard-btn'); // only on a published article
   const fieldset = form && form.querySelector('fieldset');
   if (!page || !form || !saveBtn) return; // read-only page: nothing to do
 
@@ -158,26 +159,33 @@
   // ---- submitting for approval ----
   let submitting = false;
 
-  async function sendSubmit() {
+  // POST to one of the article's action endpoints (submit, discard); an error answer becomes a thrown Error
+  async function postAction(action, failMessage) {
     let res;
     try {
-      res = await fetch(`/reporter/api/articles/${page.dataset.articleId}/submit`, { method: 'POST' });
+      res = await fetch(`/reporter/api/articles/${page.dataset.articleId}/${action}`, { method: 'POST' });
     } catch (e) {
       throw new Error('אין חיבור לשרת. נסו שוב.');
     }
     let data = {};
     try { data = await res.json(); } catch (e) { /* not JSON */ }
-    if (!res.ok) throw new Error(data.error || 'ההגשה נכשלה');
+    if (!res.ok) throw new Error(data.error || failMessage);
     return data;
   }
+  const sendSubmit = () => postAction('submit', 'ההגשה נכשלה');
 
   // Save first, then submit: the server must hold the newest text before the article goes to the editor
   async function submitForApproval() {
     if (submitting) return;
-    if (!window.confirm('להגיש את הכתבה לאישור העורך?\nאחרי ההגשה אי אפשר לערוך אותה עד שהעורך יחזיר אותה או יאשר.')) return;
+    const isUpdate = page.dataset.status === 'published'; // an update of an article that is live
+    const question = isUpdate
+      ? 'להגיש את העדכון לאישור העורך?\nהציבור ימשיך לראות את הגרסה הקודמת עד שהעורך יאשר. אחרי ההגשה אי אפשר לערוך עד שהעורך יחזיר או יאשר.'
+      : 'להגיש את הכתבה לאישור העורך?\nאחרי ההגשה אי אפשר לערוך אותה עד שהעורך יחזיר אותה או יאשר.';
+    if (!window.confirm(question)) return;
     submitting = true;
     submitBtn.disabled = true;
     saveBtn.disabled = true;
+    if (discardBtn) discardBtn.disabled = true;
     fieldset.disabled = true; // nothing can be typed while the article is being sent
     showStatus('שומר ושולח לאישור...');
     try {
@@ -193,6 +201,34 @@
       submitting = false;
       submitBtn.disabled = false;
       saveBtn.disabled = false;
+      if (discardBtn) discardBtn.disabled = false;
+      fieldset.disabled = false;
+    }
+  }
+
+  // "Cancel changes" (a published article only): the draft goes back to what the public sees
+  async function discardChanges() {
+    if (submitting) return;
+    if (!window.confirm('לבטל את כל השינויים ולחזור לגרסה שפורסמה?\nמה שכתבת מאז הפרסום יימחק.')) return;
+    submitting = true;
+    submitBtn.disabled = true;
+    saveBtn.disabled = true;
+    discardBtn.disabled = true;
+    fieldset.disabled = true;
+    clearTimers(); // no autosave may run after the draft was reset
+    state.stopped = true;
+    showStatus('מבטל שינויים...');
+    try {
+      while (state.saving) await inflight; // a save that is already running has to finish first
+      await postAction('discard', 'ביטול השינויים נכשל');
+      window.location.reload(); // the page is filled again from the server
+    } catch (err) {
+      showStatus(err.message, true);
+      state.stopped = false;
+      submitting = false;
+      submitBtn.disabled = false;
+      saveBtn.disabled = false;
+      discardBtn.disabled = false;
       fieldset.disabled = false;
     }
   }
@@ -212,6 +248,7 @@
   });
 
   if (submitBtn) submitBtn.addEventListener('click', submitForApproval);
+  if (discardBtn) discardBtn.addEventListener('click', discardChanges);
 
   // Going back to the list: finish saving first, so the list shows the newest data
   if (backLink) {

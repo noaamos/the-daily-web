@@ -14,7 +14,7 @@
 .reporter-page .new-article-form input {
   padding: 0.45rem 0.7rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
 }
-.reporter-page .form-actions { display: flex; gap: 0.5rem; margin-top: 0.25rem; }
+.reporter-page .form-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; }
 .reporter-page .field-error { margin: 0; font-size: 0.9rem; color: #B03A1E; }
 .reporter-page .field-error[hidden] { display: none; }
 
@@ -40,6 +40,12 @@
 }
 .reporter-page .notice[hidden] { display: none; }
 .reporter-page .notice.success { background: #D8F3E8; color: #1F7A55; }
+/* an article that is live: calm information, not a warning */
+.reporter-page .notice.info { background: var(--nav-bg); color: #1A2233; }
+.reporter-page .notice.info a { margin-inline-start: 0.5rem; font-weight: 600; }
+.reporter-page .btn-danger { color: #B03A1E; border-color: #F0C4BA; }
+.reporter-page .btn-danger:hover { border-color: #B03A1E; }
+.reporter-page .edit-form select:disabled { background: var(--surface-soft); color: var(--muted); }
 .reporter-page .field-hint { margin: 0; font-size: 0.85rem; color: #8A5A00; }
 .reporter-page .field-hint[hidden] { display: none; }
 .reporter-page .save-status { font-size: 0.9rem; color: var(--muted); }
@@ -82,6 +88,11 @@
 .reporter-page .badge-returned  { background: #FFE0DA; color: #B03A1E; }
 .reporter-page .badge-published { background: #D8F3E8; color: #1F7A55; }
 
+.reporter-page .row-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+/* an update of a live article, and a live article with changes that were not submitted yet */
+.reporter-page .badge-update { background: var(--nav-bg); color: #2F5FB8; }
+.reporter-page .badge-unsent { background: #FFF1CC; color: #8A5A00; }
+
 .reporter-page .list-status { margin: 1rem 0; text-align: center; }
 .reporter-page #load-more { display: block; margin: 1rem auto; }
 .reporter-page #load-more[hidden] { display: none; }
@@ -89,5 +100,5 @@
 /* Phone: the status badge moves under the title */
 @media (max-width: 640px) {
   .reporter-page .article-row { grid-template-columns: 1fr; gap: 0.6rem; }
-  .reporter-page .article-row .badge { justify-self: start; }
+  .reporter-page .article-row .row-badges { justify-self: start; }
 }

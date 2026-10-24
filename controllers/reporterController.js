@@ -9,9 +9,22 @@ const { STATUS, CATEGORIES, STATUS_LABELS_HE, CATEGORY_LABELS_HE, PAGE_SIZE } = 
 
 const MAX_TITLE_LENGTH = 200;
 
-// Statuses in which a reporter may change the draft. A published article is not editable yet:
-// how editing a live article works (task 7) still has to be agreed with the team and the lecturer.
-const EDITABLE = [STATUS.DRAFT, STATUS.RETURNED];
+// Statuses in which a reporter may change the draft. For a published article the reporter works on `draft` only:
+// the public keeps seeing `published` until an editor approves the update (see articleService).
+const EDITABLE = [STATUS.DRAFT, STATUS.RETURNED, STATUS.PUBLISHED];
+
+// The content fields that exist in both versions of an article
+const CONTENT_KEYS = ['title', 'summary', 'body', 'imageUrl'];
+
+// Does the draft of a published article differ from what the public sees?
+function differsFromPublished(article) {
+  return CONTENT_KEYS.some((key) => (article.draft[key] || '') !== (article.published[key] || ''));
+}
+
+// Aggregation expression: "the draft differs from the published version in this field" (computed by MongoDB,
+// so the list does not have to load the text of every article)
+const fieldDiffers = (key) => ({ $ne: [{ $ifNull: [`$draft.${key}`, ''] }, { $ifNull: [`$published.${key}`, ''] }] });
+const hasPublishedVersion = { $eq: [{ $type: '$published' }, 'object'] };
 
 // Content fields of the draft: Hebrew name (for error messages) and maximum length
 const DRAFT_FIELDS = {
@@ -31,6 +44,10 @@ function toRow(a) {
     status: a.status,
     statusLabel: STATUS_LABELS_HE[a.status],
     editable: EDITABLE.includes(a.status),
+    // an update of an article that is live: it is waiting for the editor, or was returned for fixes
+    isUpdate: Boolean(a.hasPublished) && a.status !== STATUS.PUBLISHED,
+    // a published article whose draft was changed but not submitted yet
+    unsentChanges: Boolean(a.unsent),
     // The editor's note is only meaningful while the article is waiting for fixes. transition() keeps the old
     // text in the database after a resubmit (it is cleared on publish), so it must not be shown in other states.
     editorNote: a.status === STATUS.RETURNED ? (a.editorNote || '') : '',
@@ -77,7 +94,7 @@ exports.dashboardPage = (req, res) => {
 
 // GET /reporter/articles/:id/edit
 // The form is filled on the server, so a refresh always shows the last saved version.
-// An article that is waiting for approval or already published opens read-only.
+// An article that is waiting for approval opens read-only.
 exports.editPage = async (req, res, next) => {
   try {
     const article = await loadOwnArticle(req);
@@ -99,12 +116,20 @@ exports.listMine = async (req, res, next) => {
     const page = req.query.page === undefined ? 1 : Number(req.query.page);
     if (!Number.isInteger(page) || page < 1) throw httpError(400, 'מספר עמוד לא תקין');
 
-    const docs = await Article.find({ author: req.user._id })
-      .sort({ updatedAt: -1, _id: -1 })
-      .skip((page - 1) * PAGE_SIZE)
-      .limit(PAGE_SIZE + 1) // one extra row tells us whether there is another page
-      .select('status category draft.title editorNote updatedAt')
-      .lean();
+    const docs = await Article.aggregate([
+      { $match: { author: req.user._id } },
+      { $sort: { updatedAt: -1, _id: -1 } },
+      { $skip: (page - 1) * PAGE_SIZE },
+      { $limit: PAGE_SIZE + 1 }, // one extra row tells us whether there is another page
+      {
+        $project: {
+          status: 1, category: 1, 'draft.title': 1, editorNote: 1, updatedAt: 1,
+          hasPublished: hasPublishedVersion,
+          // a published article whose draft differs from the published version in any field
+          unsent: { $and: [{ $eq: ['$status', STATUS.PUBLISHED] }, hasPublishedVersion, { $or: CONTENT_KEYS.map(fieldDiffers) }] },
+        },
+      },
+    ]);
 
     const hasMore = docs.length > PAGE_SIZE;
     const articles = docs.slice(0, PAGE_SIZE).map(toRow);
@@ -147,6 +172,15 @@ exports.autosave = async (req, res, next) => {
     if (!EDITABLE.includes(article.status)) throw httpError(409, 'אי אפשר לערוך כתבה במצב הזה');
     const content = cleanDraft(req.body || {}); // 400 on invalid data
 
+    // The category belongs to the whole article, not to a version: changing it would show on the public site at once,
+    // before the editor approved anything. So an article that has a published version keeps its category.
+    if (article.published) {
+      if (content.category !== undefined && content.category !== article.category) {
+        throw httpError(400, 'אי אפשר לשנות קטגוריה של כתבה שפורסמה');
+      }
+      delete content.category;
+    }
+
     // Owner and status are checked again inside the update itself, so an action that changes the status
     // at this very moment (e.g. an editor approving) can never be overwritten by an older save.
     const saved = await Article.findOneAndUpdate(
@@ -181,10 +215,46 @@ exports.submit = async (req, res, next) => {
     if (!(article.draft.title || '').trim()) missing.push('כותרת');
     if (!(article.draft.body || '').trim()) missing.push('תוכן');
     if (missing.length) throw httpError(400, `לפני ההגשה יש למלא: ${missing.join(' ו')}`);
+    // An update of a published article must change something: otherwise the editor gets an identical "update"
+    // (and approving it would add a false publish marker to the analytics chart).
+    if (article.status === STATUS.PUBLISHED && article.published && !differsFromPublished(article)) {
+      throw httpError(400, 'אין שינויים להגשה');
+    }
 
     await transition(article, STATUS.PENDING, req.user); // 400 when the current status does not allow it
     logger.info(`Reporter ${req.user.username} submitted article ${article._id}`);
     res.json({ status: article.status, statusLabel: STATUS_LABELS_HE[article.status] });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /reporter/api/articles/:id/discard
+// "Cancel changes": the draft of a published article goes back to what the public sees.
+// Only while the article is published (not after the update was submitted).
+exports.discardChanges = async (req, res, next) => {
+  try {
+    const article = await loadOwnArticle(req); // 404 / 403
+    if (article.status !== STATUS.PUBLISHED || !article.published) {
+      throw httpError(409, 'אפשר לבטל שינויים רק בכתבה שפורסמה ושעדיין לא הוגש לה עדכון');
+    }
+    const live = article.published.toObject();
+    const saved = await Article.findOneAndUpdate(
+      { _id: article._id, author: req.user._id, status: STATUS.PUBLISHED },
+      {
+        $set: {
+          'draft.title': live.title,
+          'draft.summary': live.summary,
+          'draft.body': live.body,
+          'draft.imageUrl': live.imageUrl,
+          draftSavedAt: null,
+        },
+      },
+      { new: true },
+    );
+    if (!saved) throw httpError(409, 'מצב הכתבה השתנה, אי אפשר לבטל שינויים');
+    logger.info(`Reporter ${req.user.username} cancelled the changes of article ${article._id}`);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

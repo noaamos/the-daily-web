@@ -76,9 +76,13 @@
     const main = [title, meta];
     // an article the editor sent back: a short preview of the note (the full text is on the edit page)
     if (a.editorNote) main.push(el('p', { class: 'row-note', text: `הערת העורך: ${a.editorNote}` }));
+    // the status, and for an article that is live: whether this is an update, or has changes that were not submitted
+    const badges = [el('span', { class: `badge badge-${a.status}`, text: a.statusLabel })];
+    if (a.isUpdate) badges.push(el('span', { class: 'badge badge-update', title: 'עדכון לכתבה שכבר פורסמה', text: 'עדכון' }));
+    if (a.unsentChanges) badges.push(el('span', { class: 'badge badge-unsent', text: 'יש שינויים שלא הוגשו' }));
     return el('li', { class: 'article-row', dataset: { id: a.id } }, [
       el('div', { class: 'row-main' }, main),
-      el('span', { class: `badge badge-${a.status}`, text: a.statusLabel }),
+      el('div', { class: 'row-badges' }, badges),
     ]);
   }
 
