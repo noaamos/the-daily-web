@@ -9,9 +9,11 @@ const TRANSITIONS = {
   [`${STATUS.RETURNED}->${STATUS.PENDING}`]:  { who: ROLES.REPORTER },
   [`${STATUS.PENDING}->${STATUS.PUBLISHED}`]: { who: ROLES.EDITOR },
   [`${STATUS.PENDING}->${STATUS.RETURNED}`]:  { who: ROLES.EDITOR },
-  // OPEN QUESTION (ask the lecturer): how does a reporter start editing an already-published article?
-  // Option we suggest: status stays "published" while the reporter works on `draft`,
-  // and submitting moves published -> pending (the public keeps seeing `published` the whole time).
+  // Editing an already-published article. The requirements do not define a transition out of "published", so this
+  // one is OUR proposal (to be confirmed by the lecturer): the status stays "published" while the reporter works on
+  // `draft`, and submitting the update moves published -> pending. The public keeps seeing `published` the whole time;
+  // the editor approves or returns it like any other pending article (the draft is copied to `published` on approval).
+  [`${STATUS.PUBLISHED}->${STATUS.PENDING}`]: { who: ROLES.REPORTER },
 };
 
 function canTransition(from, to, role) {
