@@ -190,3 +190,316 @@
 .weather-details { list-style: none; padding: 0; margin: 0.75rem 0 0; display: grid; gap: 0.3rem; font-size: 0.9rem; }
 .weather-details li { display: flex; justify-content: space-between; }
 .weather-updated { margin: 0.75rem 0 0; font-size: 0.78rem; color: var(--muted); }
+
+/* ==== Redesign (inspiration image): warm paper, white rounded cards, 3-column front page, search in the header ====
+   Loaded only on the public pages (home + article). Everything below overrides the rules above and main.css.
+   Home-only rules use .layout-home. To change the look, edit the variables first. */
+:root {
+  --paper: #FCFAF6;          /* page background (very light cream / off-white) */
+  --card: #FFFFFF;
+  --ink: #1A1A1F;
+  --btn: #23262D;            /* login button, active category underline */
+  --overlay: 14, 18, 30;     /* rgb of the dark tint under text on images */
+  --field: #F2EEE6;          /* search field / select background */
+  --shadow-card: 0 4px 18px rgba(70, 50, 20, 0.07);
+  --radius-lg: 20px;
+}
+body { background: var(--paper); }
+
+/* ---- Header: [login] [search ............] [logo + tagline]  (RTL: the first area is on the right) ---- */
+.site-header { background: var(--paper); }
+.masthead, .category-nav-inner { max-width: 1360px; }
+.masthead {
+  grid-template-columns: auto minmax(240px, 1fr) auto; grid-template-areas: "actions search brand";
+  gap: 1.5rem; padding: 1.1rem 1rem 0.6rem;
+}
+.masthead-date { display: none; }
+.brand { grid-area: brand; justify-self: end; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
+.tagline { display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; letter-spacing: 0.08em; color: var(--muted); white-space: nowrap; }
+.tagline::before, .tagline::after { content: ""; width: 1.4rem; border-top: 1px solid currentColor; opacity: 0.6; }
+.header-search { grid-area: search; position: relative; }
+.header-search input {
+  width: 100%; min-width: 0; padding: 0.8rem 1.3rem 0.8rem 3rem; border: none; border-radius: 999px;
+  background: var(--field); color: var(--text);
+}
+.header-search input:focus { outline: 2px solid var(--btn); outline-offset: 0; }
+.search-icon { position: absolute; left: 1.1rem; top: 50%; transform: translateY(-50%); color: var(--text); pointer-events: none; }
+.masthead-actions { grid-area: actions; justify-content: flex-start; }
+.masthead-actions .btn-accent,
+.masthead-actions .btn-outline { display: inline-flex; align-items: center; gap: 0.5rem; border-radius: 999px; padding: 0.6rem 1.4rem; }
+.masthead-actions .btn-accent { background: var(--btn); border-color: var(--btn); }
+
+.category-nav { background: transparent; }
+.category-nav-inner { gap: 0 2.25rem; justify-content: center; flex-wrap: wrap; overflow-x: visible; padding-bottom: 0.25rem; }
+.category-nav a[data-category] { color: var(--ink); font-weight: 500; }
+.category-nav a:hover { border-bottom-color: rgba(26, 26, 31, 0.35); }
+.category-nav a.active { font-weight: 800; border-bottom-color: var(--btn); }
+
+@media (max-width: 900px) {
+  .masthead { grid-template-columns: 1fr auto; grid-template-areas: "brand brand" "search actions"; row-gap: 0.9rem; }
+  .brand { justify-self: center; }
+  .category-nav-inner { justify-content: flex-start; gap: 0 1.5rem; }
+}
+@media (max-width: 640px) {
+  .masthead { grid-template-columns: 1fr; grid-template-areas: "actions" "brand" "search"; justify-items: stretch; }
+  .masthead-actions { width: 100%; justify-content: flex-start; }
+  .brand { justify-self: center; }
+}
+
+/* ---- Home page layout: 3-column front page across the full width, then the feed with the sidebar next to it ----
+   <main> stops being a box (display: contents), so the front page can span the full width while the sidebar
+   sits next to the feed. */
+.layout-home {
+  max-width: 1360px; display: grid; grid-template-columns: 250px minmax(0, 1fr);
+  gap: 1.5rem 2rem; align-items: start;
+}
+.layout-home > main { display: contents; }
+.layout-home .front { grid-column: 1 / -1; grid-row: 1; }
+.layout-home .section-title { grid-column: 2; grid-row: 2; align-self: center; margin: 0; padding: 0; border: none; font-size: 1.9rem; }
+.layout-home #feed-controls { grid-column: 2; grid-row: 2; justify-self: end; align-self: center; }
+.layout-home .feed, .layout-home .feed-status, .layout-home #feed-sentinel { grid-column: 2; }
+.layout-home .sidebar { grid-column: 1; grid-row: 2 / span 4; flex: none; }
+.layout-home .sidebar > section { background: var(--card); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 1.25rem 1.4rem; }
+.layout-home .sidebar h2 { font-family: var(--font-sans); font-weight: 800; font-size: 1.2rem; }
+
+/* Filters (category / seen / sort): small pills on the same row as the "all articles" title */
+.layout-home .feed-controls { background: none; box-shadow: none; padding: 0; margin: 0; gap: 0.5rem; align-items: center; }
+.layout-home .feed-controls select {
+  border: none; border-radius: 999px; background-color: var(--card); padding: 0.55rem 1.1rem; min-width: 0; max-width: 100%;
+  box-shadow: var(--shadow-card);
+}
+.layout-home .feed-controls select:focus { outline: 2px solid var(--btn); outline-offset: 0; }
+
+/* ---- Front page: [side cards | featured | what's new]. RTL: the first column is on the right. ---- */
+.front { display: grid; grid-template-columns: 340px minmax(0, 1fr) 270px; grid-template-rows: minmax(470px, auto); gap: 1.25rem; margin: 0; }
+.front[hidden] { display: none; } /* feed.js hides the front page while a search / filter is active */
+
+/* Side cards: image, category, headline, summary and an arrow button (the whole card is the link) */
+.front-strip { display: grid; grid-template-columns: 1fr; grid-template-rows: repeat(2, 1fr); gap: 1.25rem; padding: 0; margin: 0; border: none; }
+.strip-item {
+  position: relative; overflow: hidden; display: grid; align-content: end; justify-items: start; gap: 0.45rem; min-height: 150px;
+  padding: 1.3rem; border-top: none; border-radius: var(--radius-lg); background: var(--btn); color: #fff; box-shadow: var(--shadow-card);
+}
+.strip-item img { position: absolute; inset: 0; width: 100%; height: 100%; flex: none; border-radius: 0; object-fit: cover; }
+.strip-item::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(var(--overlay), 0.82), rgba(var(--overlay), 0.04) 75%); }
+.strip-item > * { position: relative; z-index: 1; }
+.strip-item .cat-pill { background: rgba(var(--overlay), 0.55); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3); }
+.strip-title { font-family: var(--font-display); font-size: 1.35rem; font-weight: 400; line-height: 1.2; }
+.strip-summary {
+  max-width: calc(100% - 3rem); font-size: 0.9rem; line-height: 1.45; color: rgba(255, 255, 255, 0.85);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.strip-arrow {
+  position: absolute; z-index: 1; inset-inline-end: 1.1rem; bottom: 1.1rem; width: 2.4rem; height: 2.4rem; border-radius: 50%;
+  display: grid; place-items: center; background: #fff; color: var(--ink); font-size: 1.1rem;
+}
+.strip-item:hover .strip-title { text-decoration: underline; text-underline-offset: 4px; }
+@media (min-width: 1101px) { .strip-item:nth-child(n + 3) { display: none; } } /* two big cards like the image; all four show on smaller screens */
+
+/* <div class="front-main"> disappears, so the featured article and the "what's new" list become columns of .front */
+.front-main { display: contents; }
+
+/* Featured article: full-bleed image, text on a dark gradient. The article is a grid, the link is a subgrid of it
+   (rows: free space / category / title / summary / byline / button), so the parts outside the link line up. */
+.front-featured {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr auto auto auto auto auto;
+  border-radius: var(--radius-lg); overflow: hidden; background: var(--btn); color: #fff; box-shadow: var(--shadow-card);
+}
+.front-featured .section-label {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.front-featured > a { grid-area: 1 / 1 / 7 / 2; display: grid; grid-template-rows: subgrid; gap: 0; }
+.front-featured > a::before {
+  content: ""; grid-area: 1 / 1 / -1 / 2; z-index: 1;
+  background: linear-gradient(to top, rgba(var(--overlay), 0.88) 0%, rgba(var(--overlay), 0.5) 40%, rgba(var(--overlay), 0) 75%);
+}
+.front-featured > a > img { grid-area: 1 / 1 / -1 / 2; z-index: 0; width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; object-fit: cover; }
+.front-featured .cat-pill {
+  grid-column: 1; grid-row: 2; justify-self: start; position: relative; z-index: 2; margin: 0 2rem 0.6rem;
+  background: rgba(var(--overlay), 0.55); color: #fff; border: 1px solid rgba(255, 255, 255, 0.35);
+}
+.featured-title { grid-column: 1; grid-row: 3; position: relative; z-index: 2; margin: 0 2rem 0.6rem; color: #fff; font-size: clamp(1.8rem, 3vw, 2.7rem); }
+.featured-summary { grid-column: 1; grid-row: 4; position: relative; z-index: 2; margin: 0 2rem 0.6rem; max-width: 62ch; color: rgba(255, 255, 255, 0.9); }
+.front-featured .item-meta { grid-column: 1; grid-row: 5; position: relative; z-index: 2; margin: 0 2rem 0.9rem; color: rgba(255, 255, 255, 0.7); }
+.read-more {
+  grid-column: 1; grid-row: 6; justify-self: start; position: relative; z-index: 2; margin: 0 2rem 1.75rem;
+  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 1.2rem; border-radius: 999px; font-size: 0.9rem; font-weight: 500;
+  background: rgba(var(--overlay), 0.5); color: #fff; border: 1px solid rgba(255, 255, 255, 0.4);
+}
+.front-featured > a:hover .read-more { background: #fff; color: var(--ink); }
+/* Old browsers without subgrid: image on top, text below it (still readable and clickable) */
+@supports not (grid-template-rows: subgrid) {
+  .front-featured > a { display: flex; flex-direction: column; grid-area: 1 / 1 / 2 / 2; }
+  .front-featured > a::before { display: none; }
+  .front-featured > a > img { height: auto; aspect-ratio: 16 / 10; }
+  .front-featured { grid-template-rows: auto auto auto; }
+  .featured-summary { grid-row: 2; } .front-featured .item-meta { grid-row: 3; }
+}
+
+/* "What's new": white card; each item = category (start) + time (end) on one line, headline under it */
+.front-latest { background: var(--card); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 1.4rem 1.4rem 0.4rem; display: flex; flex-direction: column; }
+.front-latest .section-label {
+  display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; padding: 0; border: none;
+  font-family: var(--font-display); font-weight: 400; font-size: 1.6rem;
+}
+.front-latest .section-label::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #D9382B; }
+.front-latest .list-item { flex: 1; align-content: center; display: grid; grid-template-columns: 1fr auto; column-gap: 0.75rem; row-gap: 0.15rem; padding: 0.95rem 0; border-bottom: 1px solid var(--border); }
+.front-latest .list-item img { display: none; }
+.front-latest .cat-label { grid-column: 1; grid-row: 1; }
+.front-latest .item-meta { grid-column: 2; grid-row: 1; }
+.front-latest .list-title, .front-latest .list-item-lead .list-title { grid-column: 1 / -1; grid-row: 2; font-family: var(--font-sans); font-size: 1rem; font-weight: 700; line-height: 1.4; }
+.latest-more { display: flex; align-items: center; gap: 0.4rem; padding: 0.9rem 0 1rem; color: var(--muted); text-decoration: none; font-size: 0.95rem; }
+.latest-more:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---- Feed: white cards with an inset rounded image, like "featured articles" in the image ---- */
+.feed { grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 1.25rem; }
+.card { background: var(--card); border-radius: 16px; box-shadow: none; border: 1px solid rgba(70, 50, 20, 0.07); padding: 0.55rem; }
+.card:hover { box-shadow: 0 12px 30px rgba(70, 50, 20, 0.13); }
+.card-media { border-radius: 10px; }
+.card-body { padding: 0.9rem 0.5rem 0.6rem; gap: 0.35rem; }
+.card-title { font-family: var(--font-sans); font-size: 1.1rem; font-weight: 800; line-height: 1.3; }
+.card-summary { font-size: 0.9rem; }
+.feed.is-loading { opacity: 0.55; transition: opacity 0.2s 0.25s; }
+.feed { transition: opacity 0.15s; }
+.card .item-meta { display: none; }
+.feed-status button { border-radius: 999px; background: var(--card); }
+
+/* ---- Responsive ---- */
+@media (max-width: 1100px) {
+  /* Featured on its own row, the 4 side cards become a row of tiles (headline only), "what's new" below */
+  .front { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  .front-featured { grid-row: 1; min-height: 460px; }
+  .front-strip { grid-row: 2; grid-template-columns: repeat(4, 1fr); grid-template-rows: none; }
+  .strip-item { min-height: 170px; padding: 1rem; }
+  .strip-title { font-size: 1.05rem; }
+  .strip-summary, .strip-arrow { display: none; }
+  .front-latest { grid-row: 3; }
+  /* the filters drop under the title */
+  .layout-home #feed-controls { grid-row: 3; justify-self: stretch; }
+  .layout-home .feed, .layout-home .feed-status, .layout-home #feed-sentinel { grid-row: auto; }
+  .layout-home .sidebar { grid-row: 2 / span 5; }
+}
+@media (max-width: 900px) {
+  .layout-home { display: flex; flex-direction: column; align-items: stretch; }
+  .layout-home > main { display: contents; }
+  .layout-home .sidebar { position: static; }
+  /* Weather goes under the front page (before the feed); "most read" stays last */
+  .layout-home .section-title, .layout-home #feed-controls, .layout-home .feed, .layout-home .feed-status, .layout-home #feed-sentinel { order: 2; }
+  .layout-home .sidebar > .weather-widget { order: 1; }
+  .layout-home .sidebar > section:not(.weather-widget) { order: 3; }
+}
+/* Tablet: the weather card is a compact two-column strip instead of a tall box */
+@media (min-width: 561px) and (max-width: 900px) {
+  .layout-home .weather-body { display: grid; grid-template-columns: 1fr 1fr; column-gap: 2rem; align-items: center; }
+  .layout-home .weather-body > .weather-details { grid-column: 2; grid-row: 1 / span 3; margin: 0; }
+  .layout-home .weather-body > .weather-updated { grid-column: 1 / -1; }
+}
+@media (max-width: 700px) {
+  .front-strip { grid-template-columns: repeat(2, 1fr); }
+  .front-featured { min-height: 400px; }
+  .front-featured .cat-pill, .featured-title, .featured-summary, .front-featured .item-meta, .read-more { margin-inline: 1.25rem; }
+  .layout-home .feed-controls select { flex: 1 1 40%; }
+}
+
+/* ==== Article page redesign (same design system as the home page feed) ==== */
+
+/* Layout: weather card on the start side (like the home page), the article in a reading-width column */
+.layout-article {
+  max-width: 1360px; display: grid; grid-template-columns: 250px minmax(0, 880px); justify-content: center;
+  gap: 1.5rem 2rem; align-items: start;
+}
+.layout-article > main { grid-column: 2; grid-row: 1; min-width: 0; }
+.layout-article .sidebar { grid-column: 1; grid-row: 1; flex: none; }
+.layout-article .sidebar > section { background: var(--card); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 1.25rem 1.4rem; }
+.layout-article .sidebar h2 { font-family: var(--font-sans); font-weight: 800; font-size: 1.2rem; }
+
+.back-link {
+  display: inline-flex; align-items: center; gap: 0.4rem; margin: 0 0 1rem; padding: 0.4rem 1.1rem; font-size: 0.9rem;
+  color: var(--text); text-decoration: none; background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-pill);
+}
+.back-link:hover { color: var(--text); border-color: var(--text); }
+
+/* Hero: big image with the headline on a dark gradient (like the featured article on the home page) */
+.article-hero {
+  position: relative; display: grid; align-items: end; min-height: 440px; overflow: hidden;
+  border-radius: var(--radius-lg); background: var(--btn); color: #fff; box-shadow: var(--shadow-card);
+}
+.article-hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.article-hero.has-image::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(var(--overlay), 0.9) 0%, rgba(var(--overlay), 0.55) 45%, rgba(var(--overlay), 0) 80%);
+}
+.article-hero-text { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 0.7rem; padding: 2rem clamp(1.25rem, 4vw, 2.5rem); }
+.article-category {
+  align-self: flex-start; padding: 0.15rem 0.85rem; border-radius: var(--radius-pill); font-size: 0.8rem; font-weight: 700;
+  background: rgba(var(--overlay), 0.55); color: #fff; border: 1px solid rgba(255, 255, 255, 0.35);
+}
+.article-title { margin: 0; color: #fff; font-size: clamp(1.9rem, 4.6vw, 3.1rem); line-height: 1.15; }
+.article-summary { margin: 0; max-width: 62ch; font-size: 1.15rem; line-height: 1.5; color: rgba(255, 255, 255, 0.9); }
+.article-meta { margin: 0.3rem 0 0; padding: 0; border: none; font-size: 0.9rem; color: rgba(255, 255, 255, 0.78); }
+.article-author { color: #fff; font-weight: 700; }
+.article-updated { color: rgba(255, 255, 255, 0.9); }
+/* an article without an image: a plain white card */
+.article-hero:not(.has-image) { min-height: 0; background: var(--card); color: var(--text); border: 1px solid var(--card-border); }
+.article-hero:not(.has-image) .article-title { color: var(--text); }
+.article-hero:not(.has-image) .article-summary { color: var(--muted); }
+.article-hero:not(.has-image) .article-meta { color: var(--muted); }
+.article-hero:not(.has-image) .article-author { color: var(--text); }
+.article-hero:not(.has-image) .article-updated { color: var(--muted); }
+.article-hero:not(.has-image) .article-category { background: var(--cat-soft, var(--field)); color: var(--cat-color, var(--text)); border-color: transparent; }
+
+/* Body: white reading card; the text keeps a comfortable line length */
+.article-body {
+  max-width: none; margin-top: 1.25rem; padding: 2.25rem clamp(1.25rem, 5vw, 3.5rem);
+  background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  font-size: 1.15rem; line-height: 1.95;
+}
+.article-body > p { max-width: 68ch; margin: 0 auto 1.3em; }
+.article-body > p:last-child { margin-bottom: 0; }
+
+/* ---- Comments: a card with calm comment cards and a form that uses the shared fields and buttons ---- */
+.comments {
+  margin-top: 1.5rem; padding: 1.75rem clamp(1.25rem, 4vw, 2.5rem); border-top: none;
+  background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+}
+.comments h2 { margin: 0 0 1.1rem; font-size: 1.6rem; }
+.comment-list { max-width: none; display: grid; gap: 0.75rem; }
+.comment { padding: 0.9rem 1.1rem; background: var(--paper); border: 1px solid var(--card-border); border-radius: var(--radius-md); }
+.comment-meta { margin: 0 0 0.3rem; }
+.comment-text { color: var(--text); }
+.comment-status { margin: 0.5rem 0; padding: 0; font-size: 0.9rem; color: var(--muted); }
+.comment-status:not(:empty) { padding: 0.45rem 0.9rem; border-radius: var(--radius-md); background: var(--field); }
+.comment-status.is-error { background: var(--st-returned-bg); color: var(--st-returned-fg); font-weight: 500; }
+.comment-form { max-width: none; margin-top: 1.5rem; padding: 1.25rem 1.4rem; background: var(--paper); border: 1px solid var(--card-border); border-radius: var(--radius-lg); }
+.comment-form h3 { font-family: var(--font-sans); font-weight: 800; font-size: 1.15rem; }
+.comment-form label { margin-top: 0.4rem; font-weight: 600; }
+.comment-form input, .comment-form textarea { padding: 0.65rem 0.9rem; border: 1px solid var(--card-border); border-radius: 14px; background: var(--card); }
+.comment-form textarea { border-radius: var(--radius-md); }
+.comment-form input:focus-visible, .comment-form textarea:focus-visible,
+.comment-edit input:focus-visible, .comment-edit textarea:focus-visible { outline: 2px solid var(--btn); outline-offset: 0; }
+.comment-form-footer .btn-accent { padding: 0.6rem 1.6rem; }
+/* editor's edit / delete buttons and the inline edit form */
+.comment-actions { gap: 0.5rem; }
+.comment-action { padding: 0.3rem 1rem; font-size: 0.85rem; }
+.comment-delete { color: var(--danger); }
+.comment-delete:hover { border-color: var(--danger); color: var(--danger); }
+.comment-edit input, .comment-edit textarea { border: 1px solid var(--card-border); border-radius: 14px; background: var(--card); }
+.comment-edit textarea { border-radius: var(--radius-md); }
+
+/* ---- Recommended articles ---- */
+.related { margin-top: 2rem; }
+.related[hidden] { display: none; }
+.related h2 { margin: 0 0 1rem; font-size: 1.6rem; }
+.related-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 1.25rem; }
+
+@media (max-width: 900px) {
+  .layout-article { display: flex; flex-direction: column; align-items: stretch; }
+  .layout-article > main { order: 1; }
+  .layout-article .sidebar { position: static; }
+  .layout-article .sidebar > .weather-widget { order: 2; }
+  .layout-article .sidebar > section:not(.weather-widget) { order: 3; }
+}
+@media (max-width: 640px) {
+  .article-hero { min-height: 340px; }
+  .article-body { font-size: 1.08rem; line-height: 1.85; }
+}

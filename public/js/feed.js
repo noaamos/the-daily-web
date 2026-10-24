@@ -14,10 +14,10 @@
     sort: document.getElementById('sort'),
   };
   const frontEl = document.getElementById('front');
-  const feedTitle = document.getElementById('feed-title');
   const navLinks = document.querySelectorAll('.category-nav a[data-category]');
 
   const SEARCH_DELAY_MS = 350;
+  let searchTimer;
   const dateFormat = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
 
   // "לפני 5 דקות" / "לפני שעתיים" for the last day, a full date after that.
@@ -41,6 +41,7 @@
     loading: false,
     snapshot: null,   // returned by the server with page 1, sent back with the next pages
     controller: null, // AbortController of the request in flight
+    replaceOnLoad: false, // after a search / filter change: the old cards stay until the new first page arrives
   };
 
   function currentFilters() {
@@ -106,7 +107,12 @@
 
       const fragment = document.createDocumentFragment();
       data.articles.forEach((article) => fragment.appendChild(renderCard(article)));
-      feedEl.appendChild(fragment);
+      if (state.replaceOnLoad) {
+        feedEl.replaceChildren(fragment);
+        state.replaceOnLoad = false;
+      } else {
+        feedEl.appendChild(fragment);
+      }
 
       state.page = data.page;
       state.hasMore = data.hasMore;
@@ -117,12 +123,19 @@
       else setStatus('');
     } catch (err) {
       if (err.name === 'AbortError') return; // a newer search replaced this request - ignore it
+      if (state.replaceOnLoad) { // the new search failed: do not leave results of the OLD search on screen
+        feedEl.replaceChildren();
+        state.replaceOnLoad = false;
+      }
       setStatus(err.message || 'שגיאה בטעינת הכתבות', true);
       state.hasMore = false;
       showRetry();
     } finally {
       // Only the current request may clear the flag - an old aborted one must not touch the new one's state
-      if (controller === state.controller) state.loading = false;
+      if (controller === state.controller) {
+        state.loading = false;
+        feedEl.classList.remove('is-loading');
+      }
     }
 
     // The screen may still not be full (e.g. a tall monitor) - keep loading until it is
@@ -144,7 +157,9 @@
   //  - the URL (/?category=sports&q=...) so Back / refresh / sharing a link keep the same results
   //  - the "front page" section is shown only when no search or filter is active
   //  - the active category in the category bar
-  function syncPage() {
+  // push = true for a deliberate change (category, seen, sort): Back / Forward step through them.
+  // Typing in the search box only replaces the current entry, so one search does not fill the history.
+  function updateUrl(push) {
     const filters = currentFilters();
     const params = new URLSearchParams();
     if (filters.q) params.set('q', filters.q);
@@ -152,23 +167,48 @@
     if (filters.viewed !== 'all') params.set('viewed', filters.viewed);
     if (filters.sort !== 'date') params.set('sort', filters.sort);
     const query = params.toString();
-    history.replaceState(null, '', query ? '/?' + query : '/');
+    const next = query ? '/?' + query : '/';
+    if (next === location.pathname + location.search) return;
+    history[push ? 'pushState' : 'replaceState'](null, '', next);
+  }
 
+  function syncUi() {
+    const filters = currentFilters();
     if (frontEl) frontEl.hidden = Boolean(filters.q || filters.category || filters.viewed !== 'all');
     navLinks.forEach((link) => link.classList.toggle('active', link.dataset.category === filters.category));
   }
 
-  // Start over from page 1 - called whenever search / filter / sort changes
-  function resetFeed() {
-    syncPage();
+  // Start over from page 1. The cards on screen stay (slightly dimmed) until the new first page arrives,
+  // so the page does not collapse and jump while the request is running.
+  function loadFresh() {
     if (state.controller) state.controller.abort();
     state.page = 0;
     state.hasMore = true;
     state.loading = false;
     state.snapshot = null;
-    feedEl.replaceChildren();
+    state.replaceOnLoad = true;
+    feedEl.classList.add('is-loading');
     loadNextPage();
   }
+
+  // Called whenever search / filter / sort changes
+  function resetFeed(push) {
+    updateUrl(push === true);
+    syncUi();
+    loadFresh();
+  }
+
+  // Back / Forward: put the URL's search, category, seen and sort back into the controls and reload the results
+  window.addEventListener('popstate', () => {
+    const params = new URLSearchParams(location.search);
+    clearTimeout(searchTimer);
+    inputs.q.value = params.get('q') || '';
+    inputs.category.value = params.get('category') || '';
+    inputs.viewed.value = params.get('viewed') || 'all';
+    inputs.sort.value = params.get('sort') || 'date';
+    syncUi();
+    loadFresh();
+  });
 
   function isSentinelVisible() {
     return sentinel.getBoundingClientRect().top < window.innerHeight + 400;
@@ -181,18 +221,17 @@
   observer.observe(sentinel);
 
   // Search waits until the user stops typing, so we don't send a request on every key
-  let searchTimer;
   inputs.q.addEventListener('input', () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(resetFeed, SEARCH_DELAY_MS);
+    searchTimer = setTimeout(() => resetFeed(false), SEARCH_DELAY_MS);
   });
-  ['category', 'viewed', 'sort'].forEach((name) => inputs[name].addEventListener('change', resetFeed));
+  ['category', 'viewed', 'sort'].forEach((name) => inputs[name].addEventListener('change', () => resetFeed(true)));
 
   // Enter in the search box must not reload the page
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     clearTimeout(searchTimer);
-    resetFeed();
+    resetFeed(false);
   });
 
   // Category bar: on the home page, filter without reloading (on other pages the links navigate normally)
@@ -201,9 +240,7 @@
       if (e.ctrlKey || e.metaKey || e.shiftKey) return; // let "open in new tab" work
       e.preventDefault();
       inputs.category.value = link.dataset.category;
-      resetFeed();
-      if (link.dataset.category) feedTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      else window.scrollTo({ top: 0, behavior: 'smooth' });
+      resetFeed(true); // no scrolling: the user's position stays where it was
     });
   });
 

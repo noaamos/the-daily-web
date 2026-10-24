@@ -1,5 +1,5 @@
 <%- include('../partials/head', { styles: ['/css/public.css'] }) %>
-<%- include('../partials/header', { navActive: initial.category }) %>
+<%- include('../partials/header', { navActive: initial.category, publicSite: true, homeQuery: initial.q }) %>
 <%
   // Full date on the server; feed.js replaces it with "לפני 3 שעות" for recent articles (data-relative)
   const fullDate = (d) => new Date(d).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -7,7 +7,7 @@
 %>
 <h1 class="visually-hidden">The Daily Web - חדשות</h1>
 
-<div class="layout">
+<div class="layout layout-home">
   <main>
     <% if (front.featured) { %>
     <!-- Owner: member 1. "Front page": rendered on the server, hidden while a search / filter is active -->
@@ -16,7 +16,10 @@
         <% front.strip.forEach((a) => { %>
           <a href="/articles/<%= a.id %>" class="strip-item" data-category="<%= a.category %>">
             <% if (a.imageUrl) { %><img src="<%= a.imageUrl %>" alt="" width="96" height="72" loading="lazy"><% } %>
+            <span class="cat-pill"><%= a.categoryLabel %></span>
             <span class="strip-title"><%= a.title %></span>
+            <span class="strip-summary"><%= a.summary %></span>
+            <span class="strip-arrow" aria-hidden="true">←</span>
           </a>
         <% }) %>
       </div>
@@ -28,6 +31,7 @@
             <% if (front.featured.imageUrl) { %><img src="<%= front.featured.imageUrl %>" alt="" width="800" height="450"><% } %>
             <span class="cat-pill"><%= front.featured.categoryLabel %></span>
             <h3 class="featured-title"><%= front.featured.title %></h3>
+            <span class="read-more">קראו עוד <span aria-hidden="true">←</span></span>
           </a>
           <p class="featured-summary"><%= front.featured.summary %></p>
           <p class="item-meta"><%= front.featured.author %> · <time datetime="<%= iso(front.featured.publishedAt) %>" data-relative><%= fullDate(front.featured.publishedAt) %></time></p>
@@ -43,6 +47,7 @@
               <time class="item-meta" datetime="<%= iso(a.publishedAt) %>" data-relative><%= fullDate(a.publishedAt) %></time>
             </a>
           <% }) %>
+          <a href="#feed-title" class="latest-more">לכל הכתבות <span aria-hidden="true">←</span></a>
         </section>
       </div>
     </section>
@@ -50,8 +55,6 @@
 
     <h2 class="section-title" id="feed-title">כל הכתבות</h2>
     <form id="feed-controls" class="feed-controls" role="search">
-      <label for="q" class="visually-hidden">חיפוש כתבות</label>
-      <input type="search" id="q" name="q" placeholder="חיפוש כתבות..." maxlength="100" value="<%= initial.q %>">
       <label for="category" class="visually-hidden">קטגוריה</label>
       <select id="category" name="category">
         <option value="">כל הקטגוריות</option>
@@ -113,4 +116,5 @@
   </aside>
 </div>
 <script src="/js/feed.js" defer></script>
+<script src="/js/home-titles.js" defer></script>
 <%- include('../partials/footer') %>

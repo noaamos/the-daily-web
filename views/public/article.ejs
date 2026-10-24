@@ -1,16 +1,18 @@
 <%- include('../partials/head', { styles: ['/css/public.css'] }) %>
-<%- include('../partials/header', { navActive: article.category }) %>
+<%- include('../partials/header', { navActive: article.category, publicSite: true }) %>
 <%
   const fullDate = (d) => new Date(d).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
   const fullDateTime = (d) => new Date(d).toLocaleString('he-IL', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 %>
-<div class="layout">
+<div class="layout layout-article">
   <main>
     <!-- Owner: member 1. The full article is rendered here on the server (SEO). Comments load via Ajax. -->
     <article class="article-full" data-category="<%= article.category %>">
       <a href="/" class="back-link">→ חזרה לכל הכתבות</a>
 
-      <header class="article-header">
+      <header class="article-hero<%= content.imageUrl ? ' has-image' : '' %>">
+        <% if (content.imageUrl) { %><img class="article-hero-img" src="<%= content.imageUrl %>" alt="<%= content.title %>" width="1200" height="630"><% } %>
+        <div class="article-hero-text">
         <span class="article-category"><%= categoryLabel %></span>
         <h1 class="article-title"><%= content.title %></h1>
         <% if (content.summary) { %><p class="article-summary"><%= content.summary %></p><% } %>
@@ -21,13 +23,8 @@
             · <span class="article-updated">עודכן: <time datetime="<%= new Date(updatedAt).toISOString() %>"><%= fullDateTime(updatedAt) %></time></span>
           <% } %>
         </p>
+        </div>
       </header>
-
-      <% if (content.imageUrl) { %>
-        <figure class="article-image">
-          <img src="<%= content.imageUrl %>" alt="<%= content.title %>" width="800" height="450">
-        </figure>
-      <% } %>
 
       <div class="article-body">
         <% paragraphs.forEach((p) => { %><p><%= p %></p>
@@ -53,8 +50,14 @@
         </div>
       </form>
     </section>
+
+    <section id="related" class="related" data-article-id="<%= article._id %>" data-category="<%= article.category %>" aria-labelledby="related-title" hidden>
+      <h2 id="related-title">כתבות נוספות שעשויות לעניין אותך</h2>
+      <div class="related-grid"></div>
+    </section>
   </main>
   <%- include('../partials/sidebar') %>
 </div>
 <script src="/js/comments.js" defer></script>
+<script src="/js/related.js" defer></script>
 <%- include('../partials/footer') %>
