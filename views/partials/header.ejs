@@ -1,11 +1,35 @@
 <%
   // navActive: '' = home, a category key = that category, undefined = nothing highlighted
   const active = typeof navActive !== 'undefined' ? navActive : null;
+  // Public pages (home, article) pass publicSite: true: tagline, search field and an icon on the staff button.
+  // The home page also passes homeQuery: its search field belongs to the feed form (see feed.js).
+  const isPublic = typeof publicSite !== 'undefined' && publicSite;
+  const onHome = typeof homeQuery !== 'undefined';
 %>
 <header class="site-header">
   <div class="masthead">
     <span class="masthead-date"><%= new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) %></span>
-    <a href="/" class="logo">The Daily Web</a>
+    <div class="brand">
+      <a href="/" class="logo">The Daily Web</a>
+      <span class="tagline">חדשות שעושות סדר בעולם</span>
+    </div>
+    <% if (isPublic) { %>
+      <% const searchIcon = '<svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'; %>
+      <% if (onHome) { %>
+        <%# On the home page the field is part of the feed form (form="feed-controls"), so feed.js searches without a reload %>
+        <div class="header-search" role="search">
+          <label for="q" class="visually-hidden">חיפוש כתבות</label>
+          <input type="search" id="q" name="q" form="feed-controls" placeholder="חיפוש כתבות..." maxlength="100" value="<%= homeQuery %>">
+          <%- searchIcon %>
+        </div>
+      <% } else { %>
+        <form class="header-search" role="search" action="/" method="get">
+          <label for="header-q" class="visually-hidden">חיפוש כתבות</label>
+          <input type="search" id="header-q" name="q" placeholder="חיפוש כתבות..." maxlength="100">
+          <%- searchIcon %>
+        </form>
+      <% } %>
+    <% } %>
     <div class="masthead-actions">
       <% if (user && user.role === 'reporter') { %><a href="/reporter" class="masthead-link">הכתבות שלי</a><% } %>
       <% if (user && user.role === 'editor') { %>
@@ -18,7 +42,7 @@
           <button type="submit" class="btn-outline">התנתקות (<%= user.displayName %>)</button>
         </form>
       <% } else { %>
-        <a href="/auth/login" class="btn-accent">כניסת צוות</a>
+        <a href="/auth/login" class="btn-accent"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> כניסת צוות</a>
       <% } %>
     </div>
   </div>
