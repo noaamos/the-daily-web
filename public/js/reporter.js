@@ -73,8 +73,11 @@
     const title = a.editable
       ? el('a', { class: 'row-title', href: `/reporter/articles/${a.id}/edit`, text: a.title })
       : el('span', { class: 'row-title', text: a.title });
+    const main = [title, meta];
+    // an article the editor sent back: a short preview of the note (the full text is on the edit page)
+    if (a.editorNote) main.push(el('p', { class: 'row-note', text: `הערת העורך: ${a.editorNote}` }));
     return el('li', { class: 'article-row', dataset: { id: a.id } }, [
-      el('div', { class: 'row-main' }, [title, meta]),
+      el('div', { class: 'row-main' }, main),
       el('span', { class: `badge badge-${a.status}`, text: a.statusLabel }),
     ]);
   }

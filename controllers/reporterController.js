@@ -31,6 +31,9 @@ function toRow(a) {
     status: a.status,
     statusLabel: STATUS_LABELS_HE[a.status],
     editable: EDITABLE.includes(a.status),
+    // The editor's note is only meaningful while the article is waiting for fixes. transition() keeps the old
+    // text in the database after a resubmit (it is cleared on publish), so it must not be shown in other states.
+    editorNote: a.status === STATUS.RETURNED ? (a.editorNote || '') : '',
     updatedAt: a.updatedAt,
   };
 }
@@ -100,7 +103,7 @@ exports.listMine = async (req, res, next) => {
       .sort({ updatedAt: -1, _id: -1 })
       .skip((page - 1) * PAGE_SIZE)
       .limit(PAGE_SIZE + 1) // one extra row tells us whether there is another page
-      .select('status category draft.title updatedAt')
+      .select('status category draft.title editorNote updatedAt')
       .lean();
 
     const hasMore = docs.length > PAGE_SIZE;
