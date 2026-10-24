@@ -175,10 +175,17 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 @media (max-width: 900px) {
   .layout { flex-direction: column; align-items: stretch; padding-inline: 1rem; }
-  /* On narrow screens the sidebar's boxes join the page flow: weather goes to the top, the rest after the content */
+  /* On narrow screens the sidebar boxes and the page content share one column (display: contents), ordered with
+     "order": weather first, then the front page (0), latest news (1), most read (2), and the rest of the page (3) */
+  .layout { gap: 0; }
+  .layout > main { display: contents; }
+  .layout > main > :not(.front) { order: 3; }
+  .front { display: contents; }
+  .front-main, .front-strip, .sidebar > section { margin-bottom: 1.25rem; }
   .sidebar { display: contents; }
   .sidebar > .weather-widget { order: -1; width: 100%; }
-  .sidebar > section:not(.weather-widget) { order: 1; width: 100%; }
+  .sidebar > .front-latest { order: 1; width: 100%; }
+  .sidebar > section:not(.weather-widget):not(.front-latest) { order: 2; width: 100%; }
 }
 /* Tablet / phone: logo on the start side, actions wrap under it */
 @media (max-width: 900px) {

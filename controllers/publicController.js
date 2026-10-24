@@ -13,6 +13,8 @@ const SORTS = {
 };
 const VIEWED_OPTIONS = ['all', 'viewed', 'unviewed'];
 const MAX_QUERY_LENGTH = 100;
+// Front page takes the newest articles, each used once: 4 carousel slides, 2 medium cards, 4 in "latest news", 4 in the picks row
+const FRONT_CARDS = 14;
 
 const PUBLISHED = { published: { $ne: null } };
 const CARD_FIELDS = 'published.title published.summary published.imageUrl category author firstPublishedAt viewCount';
@@ -36,7 +38,7 @@ function findCards(sort, limit) {
   return Article.find(PUBLISHED).sort(sort).limit(limit).select(CARD_FIELDS).populate('author', 'displayName').lean();
 }
 
-// Home page. The "front page" section (featured, latest, most read) is rendered on the server;
+// Home page. The "front page" section (carousel, medium cards, picks, latest, most read) is rendered on the server;
 // the "all articles" feed below it is loaded with Ajax by feed.js.
 // Filters in the URL (/?category=sports) pre-select the controls, so category links and the Back button work.
 exports.homePage = async (req, res, next) => {
@@ -47,7 +49,7 @@ exports.homePage = async (req, res, next) => {
       viewed: VIEWED_OPTIONS.includes(req.query.viewed) ? req.query.viewed : 'all',
       sort: SORTS[req.query.sort] ? req.query.sort : 'date',
     };
-    const [latest, mostRead] = await Promise.all([findCards(SORTS.date, 9), findCards(SORTS.popular, 5)]);
+    const [latest, mostRead] = await Promise.all([findCards(SORTS.date, FRONT_CARDS), findCards(SORTS.popular, 5)]);
     const cards = latest.map(toCard);
 
     res.render('public/home', {
@@ -56,9 +58,11 @@ exports.homePage = async (req, res, next) => {
       initial,
       showFront: !initial.q && !initial.category && initial.viewed === 'all',
       front: {
-        featured: cards[0],
-        strip: cards.slice(1, 5),
-        latest: cards.slice(5, 9),
+        featured: cards[0],            // truthy only when there is at least one published article
+        slides: cards.slice(0, 4),
+        medium: cards.slice(4, 6),
+        latest: cards.slice(6, 10),
+        strip: cards.slice(10, 14),
         mostRead: mostRead.map(toCard),
       },
     });

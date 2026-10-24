@@ -14,6 +14,7 @@
     sort: document.getElementById('sort'),
   };
   const frontEl = document.getElementById('front');
+  const latestEl = document.getElementById('front-latest'); // sidebar "latest news", shown and hidden together with the front page
   const feedTitle = document.getElementById('feed-title');
   const navLinks = document.querySelectorAll('.category-nav a[data-category]');
 
@@ -165,7 +166,9 @@
     const query = params.toString();
     history.replaceState(null, '', query ? '/?' + query : '/');
 
-    if (frontEl) frontEl.hidden = Boolean(filters.q || filters.category || filters.viewed !== 'all');
+    const hideFront = Boolean(filters.q || filters.category || filters.viewed !== 'all');
+    if (frontEl) frontEl.hidden = hideFront;
+    if (latestEl) latestEl.hidden = hideFront;
     navLinks.forEach((link) => link.classList.toggle('active', link.dataset.category === filters.category));
   }
 
