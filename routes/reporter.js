@@ -13,6 +13,7 @@ router.get('/articles/:id/edit', c.editPage);
 router.get('/api/articles', c.listMine);
 router.post('/api/articles', c.create);                 // creates an empty draft, returns { _id }
 router.put('/api/articles/:id/draft', c.autosave);      // autosave: called every few seconds while typing
-router.post('/api/articles/:id/submit', c.submit);      // -> pending
+router.post('/api/articles/:id/submit', c.submit);      // -> pending (also published -> pending for an update)
+router.post('/api/articles/:id/discard', c.discardChanges); // published article: draft goes back to the published version
 
 module.exports = router;

@@ -9,9 +9,11 @@ const TRANSITIONS = {
   [`${STATUS.RETURNED}->${STATUS.PENDING}`]:  { who: ROLES.REPORTER },
   [`${STATUS.PENDING}->${STATUS.PUBLISHED}`]: { who: ROLES.EDITOR },
   [`${STATUS.PENDING}->${STATUS.RETURNED}`]:  { who: ROLES.EDITOR },
-  // OPEN QUESTION (ask the lecturer): how does a reporter start editing an already-published article?
-  // Option we suggest: status stays "published" while the reporter works on `draft`,
-  // and submitting moves published -> pending (the public keeps seeing `published` the whole time).
+  // Editing an already-published article. The requirements do not define a transition out of "published", so this
+  // one is OUR proposal (to be confirmed by the lecturer): the status stays "published" while the reporter works on
+  // `draft`, and submitting the update moves published -> pending. The public keeps seeing `published` the whole time;
+  // the editor approves or returns it like any other pending article (the draft is copied to `published` on approval).
+  [`${STATUS.PUBLISHED}->${STATUS.PENDING}`]: { who: ROLES.REPORTER },
 };
 
 function canTransition(from, to, role) {
@@ -28,12 +30,17 @@ function canTransition(from, to, role) {
  * @returns the saved article. Throws an error with .status = 400/403 if not allowed.
  */
 async function transition(article, to, user, opts = {}) {
+  // A reporter may only move their own articles. (An editor may move any article, as the table above allows.)
+  if (user.role === ROLES.REPORTER && String(article.author) !== String(user._id)) {
+    const err = new Error('אין הרשאה לכתבה זו');
+    err.status = 403;
+    throw err;
+  }
   if (!canTransition(article.status, to, user.role)) {
     const err = new Error('מעבר מצב לא מותר');
     err.status = 400;
     throw err;
   }
-  // TODO(member 3): reporter may only move their own articles (article.author equals user._id)
 
   if (to === STATUS.RETURNED) {
     const note = typeof opts.note === 'string' ? opts.note.trim() : '';
