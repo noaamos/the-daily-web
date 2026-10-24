@@ -12,11 +12,15 @@
       <h2 id="picker-title" class="panel-title">בחירת כתבה</h2>
       <label class="visually-hidden" for="article-search">חיפוש כתבה לפי כותרת</label>
       <input type="search" id="article-search" class="picker-search" placeholder="חיפוש לפי כותרת..." maxlength="100" autocomplete="off">
+      <button type="button" id="overview-btn" class="picker-item picker-overview active">
+        <span class="picker-title">כל הכתבות</span>
+        <span class="muted small">סיכום צפיות של כל הכתבות יחד</span>
+      </button>
       <ul id="picker-results" class="picker-results" aria-live="polite"></ul>
     </aside>
 
     <div class="stage">
-      <p id="chart-empty" class="stage-empty">בחרו כתבה מהרשימה כדי לראות את הצפיות שלה.</p>
+      <p id="chart-empty" class="stage-empty">טוען נתונים...</p>
 
       <div id="chart-section" class="stage-body" hidden>
         <section class="panel chart-panel" aria-labelledby="chart-title">
@@ -36,14 +40,14 @@
             <canvas id="views-chart" role="img" aria-label="גרף צפיות לאורך זמן"></canvas>
           </div>
 
-          <ul class="chart-key" aria-label="מקרא">
+          <ul class="chart-key" id="chart-key" aria-label="מקרא">
             <li><span class="key-swatch key-before"></span>לפני הפרסום שנבחר</li>
             <li><span class="key-swatch key-after"></span>אחרי הפרסום שנבחר</li>
             <li><span class="key-swatch key-marker"></span>פרסום או עדכון שאושר</li>
           </ul>
         </section>
 
-        <div class="compare">
+        <div class="compare" id="compare-section">
           <section class="panel summary-card" id="summary-card" aria-labelledby="summary-title">
             <h3 id="summary-title" class="panel-title">לפני ואחרי</h3>
             <p id="summary-text" class="summary-text">בחרו נקודת פרסום.</p>

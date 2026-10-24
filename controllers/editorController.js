@@ -4,7 +4,7 @@ const Article = require('../models/Article');
 const Comment = require('../models/Comment');
 const ViewStat = require('../models/ViewStat');
 const DeviceView = require('../models/DeviceView');
-const { getArticleStats } = require('../services/viewService');
+const { getArticleStats, getOverallStats } = require('../services/viewService');
 const { transition } = require('../services/articleService');
 const { httpError } = require('../middleware/errorHandler');
 const logger = require('../config/logger');
@@ -190,6 +190,15 @@ exports.remove = async (req, res, next) => {
     await Article.deleteOne({ _id: article._id });
     logger.info(`Editor ${req.user.username} deleted article ${article._id}`);
     res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /editor/api/stats/overview - views of all the articles together (shown before an article is picked)
+exports.overallStats = async (req, res, next) => {
+  try {
+    res.json(await getOverallStats());
   } catch (err) {
     next(err);
   }

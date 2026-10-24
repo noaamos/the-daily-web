@@ -152,6 +152,9 @@
 .key-marker { border-top-style: dashed; border-color: var(--after); }
 
 .compare { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1.5rem; align-items: start; }
+.compare[hidden] { display: none; }
+.chart-key[hidden] { display: none; }
+.picker-overview { margin-top: 0.75rem; }
 
 /* ---- Before / after ---- */
 .summary-text { margin: 0 0 1rem; color: var(--muted); }
