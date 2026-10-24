@@ -9,10 +9,12 @@ const TRANSITIONS = {
   [`${STATUS.RETURNED}->${STATUS.PENDING}`]:  { who: ROLES.REPORTER },
   [`${STATUS.PENDING}->${STATUS.PUBLISHED}`]: { who: ROLES.EDITOR },
   [`${STATUS.PENDING}->${STATUS.RETURNED}`]:  { who: ROLES.EDITOR },
-  // Editing an already-published article. The requirements do not define a transition out of "published", so this
-  // one is OUR proposal (to be confirmed by the lecturer): the status stays "published" while the reporter works on
-  // `draft`, and submitting the update moves published -> pending. The public keeps seeing `published` the whole time;
-  // the editor approves or returns it like any other pending article (the draft is copied to `published` on approval).
+  // Editing an already-published article. The requirements say the new version "goes through the same approval
+  // process" while the last approved version stays visible, and an editor only acts on "pending" articles
+  // (pending -> published / returned). So submitting an update moves published -> pending. This is the one transition
+  // that is not listed explicitly: it is how we understood that process. The status stays "published" while the
+  // reporter works on `draft`, and the public keeps seeing `published` the whole time; the editor approves or returns
+  // the update like any other pending article (the draft is copied to `published` on approval).
   [`${STATUS.PUBLISHED}->${STATUS.PENDING}`]: { who: ROLES.REPORTER },
 };
 
