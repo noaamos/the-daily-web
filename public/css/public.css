@@ -164,7 +164,7 @@
 .comment-delete:hover { border-color: var(--accent); color: var(--accent); }
 .comment-edit { display: flex; flex-direction: column; gap: 0.4rem; }
 .comment-edit input, .comment-edit textarea {
-  padding: 0.5rem 0.8rem; border: 1px solid var(--border); border-radius: 4px; background: #fff; color: var(--text); font: inherit;
+  padding: 0.5rem 0.8rem; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); font: inherit;
 }
 .comment-edit textarea { resize: vertical; }
 .comment-form {
