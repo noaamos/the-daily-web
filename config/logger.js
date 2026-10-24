@@ -1,5 +1,4 @@
 // Simple logger: prints to console and appends to logs/app.log.
-// TODO(member 2): decide which operational events to log (logins, publish, rate-limit hits, weather API errors...).
 const fs = require('fs');
 const path = require('path');
 
