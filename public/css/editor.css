@@ -113,7 +113,7 @@
 
 /* ---- Picker rail ---- */
 .picker { position: sticky; top: 1rem; background: var(--surface-soft); border-color: transparent; box-shadow: none; }
-.picker-search {
+.picker input.picker-search {
   width: 100%; padding: 0.55rem 0.8rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
 }
 .picker-results { list-style: none; margin: 0.75rem 0 0; padding: 0; display: grid; gap: 0.15rem; max-height: min(30rem, 62vh); overflow-y: auto; }
