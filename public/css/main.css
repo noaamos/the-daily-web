@@ -30,6 +30,11 @@
   --shadow-hover: 0 2px 4px rgba(60, 50, 30, 0.06), 0 14px 32px rgba(60, 50, 30, 0.13);
   --gap: 1.25rem;
 
+  /* ---- Status colors (badges, notices, errors) ---- */
+  --danger: #B03A1E;  --danger-soft: #FFE0DA;
+  --warn: #8A5A00;    --warn-soft: #FFF1CC;
+  --neutral: #5A5750; --neutral-soft: #ECE8DF;
+
   /* ---- Type ---- */
   --font-sans: "Heebo", "Arial Hebrew", Arial, sans-serif;
   --font-display: var(--font-sans);                                  /* headlines: bold sans, same as the mockup */
@@ -92,10 +97,21 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* ---- Pills / tags (category tag, status badge, filter chip share this base) ---- */
-.pill, .cat-pill, .article-category, .ed-cat, .badge, .chip {
+.pill, .cat-pill, .article-category, .cat-chip, .ed-cat, .badge, .chip {
   display: inline-flex; align-items: center; gap: 0.4rem; border-radius: var(--radius-pill);
   font-size: 0.78rem; font-weight: 700; padding: 0.15rem 0.8rem; white-space: nowrap;
 }
+
+/* Category chip (reporter / editor lists) and status badges: one look in every area */
+.cat-chip, .ed-cat { background: var(--cat-soft, var(--surface-soft)); color: var(--cat-color, var(--text)); }
+.badge-draft     { background: var(--neutral-soft); color: var(--neutral); }
+.badge-pending   { background: var(--warn-soft); color: var(--warn); }
+.badge-returned  { background: var(--danger-soft); color: var(--danger); }
+.badge-published { background: var(--cat-health-soft); color: var(--cat-health); }
+.badge-update    { background: var(--cat-tech-soft); color: var(--cat-tech); }
+.badge-unsent    { background: var(--warn-soft); color: var(--warn); }
+.badge-editor    { background: var(--cat-tech-soft); color: var(--cat-tech); }
+.badge-reporter  { background: var(--neutral-soft); color: var(--neutral); }
 
 /* ---- Masthead: logo + tagline on the start side, actions on the end side, categories underneath ---- */
 .site-header { background: var(--bg); }

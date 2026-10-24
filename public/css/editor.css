@@ -1,6 +1,6 @@
 /* Owner: member 4 - editor area (dashboard, review page, analytics) */
 
-.editor-page { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem; }
+.editor-page { max-width: 1320px; margin: 0 auto; padding: 1.25rem 1.5rem 1.5rem; }  /* same width as the header and the reporter pages */
 /* The shared heading style has a heavy underline; the editor pages use plain headings */
 .editor-page .section-title { border-bottom: 0; padding-bottom: 0; margin-bottom: 0.6rem; }
 .editor-intro { margin: -0.5rem 0 1.25rem; }
@@ -32,19 +32,8 @@
 .row-badges { display: flex; align-items: center; gap: 0.4rem; }
 .row-badges .badge-update { margin-inline-start: 0; }
 
-.ed-cat {
-  display: inline-block; background: var(--cat-soft, var(--surface-soft)); color: var(--cat-color, var(--text));
-  font-size: 0.78rem; font-weight: 700; padding: 0.1rem 0.7rem; border-radius: 999px; white-space: nowrap;
-}
-
-/* Status badges */
-.badge { font-size: 0.78rem; }
-.badge-pending   { background: #FFF1CC; color: #8A5A00; }
-.badge-draft     { background: #E8ECF2; color: #4A5468; }
-.badge-returned  { background: #FFE0DA; color: #B03A1E; }
-.badge-published { background: var(--cat-health-soft); color: var(--cat-health); }
-/* "update of a live article waiting for approval" */
-.badge-update { background: #DCEFF6; color: #1E6E8C; margin-inline-start: 0.4rem; }
+/* Category chip and status badges are shared (main.css). "update of a live article waiting for approval": */
+.badge-update { margin-inline-start: 0.4rem; }
 
 /* ==== Row actions: one main button + a small "more" menu ==== */
 .row-actions { display: flex; gap: 0.4rem; align-items: center; }
@@ -68,7 +57,7 @@
   font: inherit; color: var(--text); text-decoration: none; cursor: pointer;
 }
 .more-menu a:hover, .more-menu button:hover { background: var(--surface-soft); }
-.more-menu .danger { color: #B03A1E; }
+.more-menu .danger { color: var(--danger); }
 
 .list-status { margin: 1rem 0; text-align: center; }
 #load-more { display: block; margin: 1rem auto; }
@@ -80,7 +69,7 @@
   background: var(--ink); color: var(--ink-text); padding: 0.6rem 1.25rem; border-radius: var(--radius-pill);
   font-size: 0.95rem; box-shadow: 0 4px 16px rgba(26, 34, 51, 0.25); z-index: 10;
 }
-.toast.error { background: #B03A1E; color: #fff; }
+.toast.error { background: var(--danger); color: #fff; }
 
 /* ==== Mobile: title on top, status and actions on one line below ==== */
 @media (max-width: 640px) {
@@ -94,7 +83,7 @@
 .analytics-page {
   --before: #4F6E9C; --before-line: #7A93B8; --before-soft: #E9EEF5;
   --after: var(--accent); --after-soft: #FDEBE5;
-  --up: #1F7A55; --down: #B03A1E;
+  --up: #1F7A55; --down: var(--danger);
 }
 .small { font-size: 0.85rem; }
 .analytics-head { margin-bottom: 1.25rem; }
@@ -212,7 +201,7 @@
 .review-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; align-items: center; }
 .review-meta .badge-update { margin-inline-start: 0; }
 .review-title { margin: 0.75rem 0 0; font-size: clamp(1.5rem, 3.4vw, 2.3rem); line-height: 1.2; }
-.editor-note { margin: 1rem 0 0; padding: 0.7rem 1rem; background: #FFF1CC; border-radius: 10px; color: #6B4600; }
+.editor-note { margin: 1rem 0 0; padding: 0.7rem 1rem; background: var(--warn-soft); border-radius: 10px; color: #6B4600; }
 
 .action-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 .action-row button { padding: 0.45rem 1.2rem; }
