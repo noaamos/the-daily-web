@@ -1,15 +1,43 @@
 // Owner: member 3
 // Vanilla JS + fetch() only. No page reloads.
-// Edit page: sends the form to the server (PUT draft). The "save" button is temporary: task 4 replaces it with autosave.
+// Edit page autosave: the form is sent to the server a moment after the reporter stops typing.
+// Rules: only one request at a time, the newest version always wins, and nothing typed is ever thrown away.
 (function () {
   const page = document.querySelector('.edit-page');
   const form = document.getElementById('edit-form');
   const saveBtn = document.getElementById('save-btn');
   const statusEl = document.getElementById('save-status');
+  const imageHintEl = document.getElementById('image-hint');
+  const backLink = document.querySelector('.back-link a');
   if (!page || !form || !saveBtn) return; // read-only page: nothing to do
 
-  const articleId = page.dataset.articleId;
-  let saving = false;
+  const DEBOUNCE_MS = 1500;                    // quiet time after the last keystroke
+  const MAX_WAIT_MS = 10000;                   // while typing goes on, save at least this often
+  const RETRY_MS = [2000, 5000, 10000];        // wait before retrying a failed save (the last one repeats)
+  const KEEPALIVE_MAX_BYTES = 60000;           // browsers refuse "keepalive" requests above ~64KB
+  const IMAGE_OK = /^https?:\/\//i;
+
+  const url = `/reporter/api/articles/${page.dataset.articleId}/draft`;
+  const f = form.elements;
+
+  // everything the reporter typed, as one string: comparing two snapshots tells whether anything changed
+  const snapshot = () => JSON.stringify({
+    category: f.category.value, title: f.title.value, summary: f.summary.value, body: f.body.value, imageUrl: f.imageUrl.value,
+  });
+
+  const state = {
+    saving: false,
+    stopped: false,                       // true after an error that retrying cannot fix
+    leaveAnyway: false,
+    retries: 0,
+    savedSnapshot: snapshot(),            // what the server has (the page was filled from the server)
+    lastValidImage: f.imageUrl.value.trim(),
+  };
+  let debounceTimer = null;
+  let maxTimer = null;
+  let retryTimer = null;
+  let inflight = Promise.resolve();
+  let lastSavedText = '';
 
   const timeText = (iso) => new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 
@@ -18,44 +46,167 @@
     statusEl.classList.toggle('error', Boolean(isError));
   }
 
-  if (page.dataset.savedAt) showStatus(`נשמר לאחרונה ב-${timeText(page.dataset.savedAt)}`);
-
-  // The values of all fields, in the shape the server expects
-  function readForm() {
-    const f = form.elements;
-    return {
-      category: f.category.value,
-      title: f.title.value,
-      summary: f.summary.value,
-      body: f.body.value,
-      imageUrl: f.imageUrl.value,
-    };
+  if (page.dataset.savedAt) {
+    lastSavedText = `נשמר לאחרונה ב-${timeText(page.dataset.savedAt)}`;
+    showStatus(lastSavedText);
   }
 
-  async function save(event) {
-    event.preventDefault();
-    if (saving) return; // ignore a second click while a save is running
-    saving = true;
-    saveBtn.disabled = true;
-    showStatus('שומר...');
+  const isDirty = () => snapshot() !== state.savedSnapshot;
+
+  function clearTimers() {
+    clearTimeout(debounceTimer);
+    clearTimeout(maxTimer);
+    clearTimeout(retryTimer);
+    debounceTimer = maxTimer = retryTimer = null;
+  }
+
+  // A half-typed image link ("htt") would make the server reject the whole draft, title and text included.
+  // So an invalid link is not sent: the last valid one is kept, and a hint is shown next to the field.
+  function updateImageHint() {
+    const value = f.imageUrl.value.trim();
+    imageHintEl.hidden = !value || IMAGE_OK.test(value);
+  }
+
+  function payloadFor(snap) {
+    const payload = JSON.parse(snap);
+    const image = payload.imageUrl.trim();
+    payload.imageUrl = !image || IMAGE_OK.test(image) ? image : state.lastValidImage;
+    return payload;
+  }
+
+  function failure(message, flags) {
+    return Object.assign(new Error(message), flags);
+  }
+
+  // Sends one draft. The error it throws says what to do next: .fatal = stop, .retry = try again later
+  async function send(payload) {
+    let res;
     try {
-      const res = await fetch(`/reporter/api/articles/${articleId}/draft`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(readForm()),
-      });
-      let data = {};
-      try { data = await res.json(); } catch (e) { /* not JSON */ }
-      if (!res.ok) throw new Error(data.error || 'השמירה נכשלה');
-      showStatus(`נשמר ב-${timeText(data.savedAt)}`);
-    } catch (err) {
-      // fetch() itself fails with a TypeError when the server cannot be reached
-      showStatus(err instanceof TypeError ? 'אין חיבור לשרת. נסו שוב.' : err.message, true);
-    } finally {
-      saving = false;
-      saveBtn.disabled = false;
+      res = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    } catch (e) {
+      throw failure('אין חיבור לשרת', { retry: true }); // fetch() fails with a TypeError when the server cannot be reached
+    }
+    let data = {};
+    try { data = await res.json(); } catch (e) { /* not JSON */ }
+    if (res.ok) return data;
+    if ([401, 403, 404, 409].includes(res.status)) throw failure(data.error || 'אי אפשר לשמור את הכתבה', { fatal: true });
+    if (res.status >= 500) throw failure(data.error || 'שגיאה בשרת', { retry: true });
+    throw failure(res.status === 413 ? 'התוכן ארוך מדי לשמירה' : (data.error || 'השמירה נכשלה'), { retry: false });
+  }
+
+  function handleFailure(err) {
+    if (err.fatal) {
+      state.stopped = true;
+      showStatus(`${err.message}. השמירה האוטומטית נעצרה.`, true);
+    } else if (err.retry) {
+      const wait = RETRY_MS[Math.min(state.retries, RETRY_MS.length - 1)];
+      state.retries += 1;
+      showStatus(`${err.message}. מנסים שוב בעוד ${wait / 1000} שניות.`, true);
+      retryTimer = setTimeout(save, wait);
+    } else {
+      showStatus(`לא נשמר: ${err.message}`, true); // the next change will try again
     }
   }
 
-  form.addEventListener('submit', save);
+  // Saves the current content now. Never runs two requests at the same time.
+  function save() {
+    clearTimers();
+    if (state.stopped || state.saving || !isDirty()) return Promise.resolve();
+    state.saving = true;
+    showStatus('שומר...');
+    const sent = snapshot(); // exactly what is being sent; anything typed from now on is newer
+    const payload = payloadFor(sent);
+    inflight = send(payload)
+      .then((data) => {
+        state.savedSnapshot = sent;
+        state.lastValidImage = payload.imageUrl;
+        state.retries = 0;
+        lastSavedText = `נשמר אוטומטית ב-${timeText(data.savedAt)}`;
+        showStatus(lastSavedText);
+      }, handleFailure)
+      .then(() => {
+        state.saving = false;
+        // typed while the request was running -> send the newer version (a pending retry already covers failures)
+        if (!state.stopped && !retryTimer && snapshot() !== sent) schedule();
+      });
+    return inflight;
+  }
+
+  // Runs on every change: waits for a quiet moment, but never longer than MAX_WAIT_MS
+  function schedule() {
+    if (state.stopped) return;
+    if (!isDirty()) { // typed something and undid it
+      clearTimers();
+      showStatus(lastSavedText);
+      return;
+    }
+    showStatus('יש שינויים שעדיין לא נשמרו...');
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(save, DEBOUNCE_MS);
+    if (!maxTimer) maxTimer = setTimeout(save, MAX_WAIT_MS);
+  }
+
+  // Waits for the running request, then sends what is still missing. True when the server has everything.
+  async function flush() {
+    while (state.saving) await inflight;
+    if (isDirty() && !state.stopped) await save();
+    return !isDirty();
+  }
+
+  // ---- reacting to the reporter ----
+  form.addEventListener('input', () => { // typing, paste, cut and the category list all fire "input"
+    updateImageHint();
+    schedule();
+  });
+
+  // The "save now" button (and Enter in the title field): an extra, the autosave works without it
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    state.stopped = false; // a manual click may try again after an error (e.g. after logging in again)
+    state.retries = 0;
+    flush();
+  });
+
+  // Going back to the list: finish saving first, so the list shows the newest data
+  if (backLink) {
+    backLink.addEventListener('click', async (event) => {
+      if (state.leaveAnyway || (!isDirty() && !state.saving)) return; // nothing to save: normal navigation
+      event.preventDefault();
+      const ok = state.stopped || await flush();
+      if (ok) {
+        window.location.assign(backLink.href);
+        return;
+      }
+      state.leaveAnyway = true;
+      showStatus('השינויים האחרונים לא נשמרו. לחיצה נוספת על "חזרה" תעזוב את הדף בלי לשמור.', true);
+    });
+  }
+
+  // Closing, reloading or leaving with something unsaved: the browser asks the reporter first
+  window.addEventListener('beforeunload', (event) => {
+    if (!state.stopped && (isDirty() || state.saving)) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  });
+
+  // Last chance while the page is closing: a "keepalive" request survives the page. Too big for that -> the warning above.
+  window.addEventListener('pagehide', () => {
+    if (state.stopped || !isDirty()) return;
+    const body = JSON.stringify(payloadFor(snapshot()));
+    if (new Blob([body]).size > KEEPALIVE_MAX_BYTES) return;
+    fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {});
+  });
+
+  // The network is back: do not wait for the next retry timer
+  window.addEventListener('online', () => {
+    if (retryTimer) save();
+  });
+
+  // Tab hidden / phone locked: save right away, the page may never come back
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') save();
+  });
+
+  updateImageHint();
 })();
