@@ -83,13 +83,17 @@ exports.analyticsPage = (req, res) => {
   res.render('editor/analytics', { title: 'סטטיסטיקות כתבות', articleId });
 };
 
-// GET /editor/api/articles?status=&q=&page=
+// GET /editor/api/articles?status=&live=1&q=&page=
 // All articles for the editor dashboard, newest activity first, plus a count per status for the filter chips.
+//   live=1: only articles that have a published version, whatever their status is now (an update may be pending or
+//           returned while the old version is still live). Used by the Impact Analytics picker.
 exports.list = async (req, res, next) => {
   try {
     // includes() compares with ===, so an array or an object (?status[$ne]=x) is rejected too
     if (req.query.status !== undefined && !STATUSES.includes(req.query.status)) throw httpError(400, 'מצב כתבה לא תקין');
+    if (req.query.live !== undefined && req.query.live !== '1') throw httpError(400, 'ערך הסינון לא תקין');
     const filter = req.query.status ? { status: req.query.status } : {};
+    if (req.query.live) filter.published = { $ne: null };
     const q = parseSearchText(req.query.q, MAX_QUERY_LENGTH);
     if (q) {
       const rx = { $regex: escapeRegex(q), $options: 'i' };
@@ -123,6 +127,7 @@ exports.list = async (req, res, next) => {
       statusLabel: STATUS_LABELS_HE[a.status],
       // a live article whose new version is waiting for approval: the editor must be able to tell
       isUpdate: Boolean(a.published) && a.status === STATUS.PENDING,
+      hasPublished: Boolean(a.published), // a version is live (even if its update is pending or returned): statistics exist
       updatedAt: a.updatedAt,
       viewCount: a.viewCount,
     }));

@@ -296,7 +296,7 @@
   async function search(q) {
     const mine = ++searchRequest;
     try {
-      const params = new URLSearchParams({ status: 'published' });
+      const params = new URLSearchParams({ live: '1' }); // every article with a published version, even if its update is in review
       if (q) params.set('q', q);
       const data = await getJson(`/editor/api/articles?${params}`);
       if (mine !== searchRequest) return;

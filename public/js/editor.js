@@ -84,7 +84,7 @@
     const main = el('a', { class: isPending ? 'btn-accent' : 'btn-outline', href: `/editor/articles/${a.id}`, text: isPending ? 'בדיקה' : 'צפייה' });
 
     const menu = el('div', { class: 'more-menu' });
-    if (a.status === 'published') menu.append(el('a', { href: `/editor/analytics?article=${a.id}`, text: 'סטטיסטיקות' }));
+    if (a.hasPublished) menu.append(el('a', { href: `/editor/analytics?article=${a.id}`, text: 'סטטיסטיקות' }));
     const del = el('button', { type: 'button', class: 'danger', text: 'מחיקה' });
     del.addEventListener('click', async () => {
       if (!confirm(`למחוק את "${a.title}"? אי אפשר לבטל.`)) return;
