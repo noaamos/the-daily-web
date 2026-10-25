@@ -648,7 +648,7 @@ async function reporterTests() {
     const code = fs.readFileSync(path.join(PROJECT, 'public/js', f), 'utf8');
     check(`${f} never writes data with innerHTML`, !/innerHTML\s*[+]?=/.test(code));
   }
-  check('NoSQL: editor list ignores object-valued status', (await call('GET', '/editor/api/articles?status[$ne]=draft&status[$regex]=.', { cookie: E })).body.articles.length === 20);
+  check('NoSQL: editor list refuses object-valued status (400)', (await call('GET', '/editor/api/articles?status[$ne]=draft&status[$regex]=.', { cookie: E })).status === 400);
   check('editor edit: operator objects in fields rejected', (await call('PUT', `/editor/api/articles/${(await articleOf({ status: 'pending' }))._id}/draft`, { cookie: E, json: { title: { $ne: 1 }, summary: '', body: '', imageUrl: '' } })).status === 400);
   check('editor return: operator object note rejected', (await call('POST', `/editor/api/articles/${(await articleOf({ status: 'pending' }))._id}/return`, { cookie: E, json: { note: { $ne: '' } } })).status === 400);
   check('no server error from any injection attempt', !fs.readFileSync(LOG).subarray(logStart).toString('utf8').split('\n').some((l) => / ERROR /.test(l) && !/Weather fetch failed/.test(l)));
@@ -747,8 +747,8 @@ async function reporterTests() {
     const r = await call('GET', `/editor/api/articles?status=${s}`, { cookie: E });
     check(`status=${s} filter`, r.body.articles.length > 0 && r.body.articles.every((a) => a.status === s));
   }
-  check('unknown status ignored', (await call('GET', '/editor/api/articles?status=bogus', { cookie: E })).body.articles.length === 20);
-  check('status object injection ignored', (await call('GET', '/editor/api/articles?status[$ne]=draft', { cookie: E })).status === 200);
+  check('unknown status refused (400)', (await call('GET', '/editor/api/articles?status=bogus', { cookie: E })).status === 400);
+  check('status object injection refused (400)', (await call('GET', '/editor/api/articles?status[$ne]=draft', { cookie: E })).status === 400);
   const lp1 = L.body; const lp2 = (await call('GET', '/editor/api/articles?page=2', { cookie: E })).body;
   const idsL = new Set(lp1.articles.map((a) => a.id));
   check('page 2 distinct from page 1', lp2.articles.every((a) => !idsL.has(a.id)));
@@ -756,13 +756,13 @@ async function reporterTests() {
   while (more && page < 40) { const r = (await call('GET', `/editor/api/articles?page=${page}`, { cookie: E })).body; seen += r.articles.length; more = r.hasMore; page++; }
   check('paging through everything yields 500', seen === 500, seen);
   check('page beyond end is empty, not an error', (await call('GET', '/editor/api/articles?page=99999', { cookie: E })).body.articles.length === 0);
-  for (const bp of ['-5', 'abc', '1.5', '0']) check(`page=${bp} handled`, (await call('GET', `/editor/api/articles?page=${bp}`, { cookie: E })).status === 200);
+  for (const bp of ['-5', 'abc', '1.5', '0']) check(`page=${bp} refused (400)`, (await call('GET', `/editor/api/articles?page=${bp}`, { cookie: E })).status === 400);
   check('q search works', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent(searchWord), { cookie: E })).body.articles.length > 0);
   check('q search by a full title finds that article', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent(searchTitle), { cookie: E })).body.articles.some((a) => a.id === String(searchSample._id)));
   check('q search for text that is in no title finds nothing', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent('zzqxw-no-such-title'), { cookie: E })).body.articles.length === 0);
   check('q with regex chars is safe', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent('(+*['), { cookie: E })).status === 200);
   check('q over 100 chars -> 400', (await call('GET', '/editor/api/articles?q=' + 'a'.repeat(101), { cookie: E })).status === 400);
-  check('q operator injection safe', (await call('GET', '/editor/api/articles?q[$gt]=', { cookie: E })).status === 200);
+  check('q operator injection refused (400): an object is not a search text', (await call('GET', '/editor/api/articles?q[$gt]=', { cookie: E })).status === 400);
   check('isUpdate flag matches data', L.body.articles.concat(lp2.articles).every((a) => a.isUpdate === (a.status === 'pending' && !!pubs.find((p) => String(p._id) === a.id))));
   const lite = await call('GET', '/editor/api/articles', { cookie: E });
   check('list response has no sensitive fields', !/passwordHash|deviceId/.test(lite.text));
@@ -899,6 +899,33 @@ async function reporterTests() {
   check('broken JSON body -> 400 JSON message', (await call('POST', `/editor/api/articles/${anyId}/return`, { cookie: E, raw: '{oops' })).status === 400);
   check('error pages have no stack traces', !/at .*\.js:\d+/.test(nf.text) && !/node_modules/.test(nf.text));
   check('403 page is HTML for page requests', (await call('GET', '/editor', { cookie: R })).text.includes('אין הרשאה'));
+
+  // ---------------------------------------------------------------- I2. query string validation
+  sec('I2. Query strings: bad input gets a clear 400, never a 500');
+  {
+    const bad = async (label, url, opts) => { const r = await call('GET', url, opts); check(label, r.status === 400, `${r.status} ${typeof r.body === 'string' ? r.body.slice(0, 60) : JSON.stringify(r.body).slice(0, 80)}`); return r; };
+    for (const sort of ['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf']) await bad(`feed: sort=${sort} -> 400`, `/api/articles?sort=${sort}`);
+    check('feed: the real sort values still work', (await call('GET', '/api/articles?sort=popular')).status === 200 && (await call('GET', '/api/articles?sort=date')).status === 200);
+    check('home page with sort=constructor still renders (falls back to the date sort)', (await call('GET', '/?sort=constructor')).status === 200);
+    await bad('feed: search with a null character (%00) -> 400', '/api/articles?q=a%00b');
+    await bad('feed: search with a control character (%07) -> 400', '/api/articles?q=a%07b');
+    await bad('feed: search given twice (an array) -> 400', '/api/articles?q=a&q=b');
+    await bad('editor list: search with a null character -> 400', '/editor/api/articles?q=a%00b', { cookie: E });
+    await bad('user list: search with a null character -> 400', '/api/users?q=a%00b', { cookie: E });
+    check('searching with ordinary punctuation still works', (await call('GET', '/api/articles?q=' + encodeURIComponent('C++ (שלום) [x] $ ^ . * ? | \\'))).status === 200);
+    for (const page of ['1e20', '1e3', '9007199254740993', '100001', '0', '-1', '1.5', 'abc', '%202', '0x10', '+3', '']) await bad(`feed: page=${page || '(empty)'} -> 400`, `/api/articles?page=${page}`);
+    await bad('feed: page given twice (an array) -> 400', '/api/articles?page=1&page=2');
+    check('feed: page=1 and the largest allowed page work', (await call('GET', '/api/articles?page=1')).status === 200 && (await call('GET', '/api/articles?page=100000')).status === 200);
+    const first = (await call('GET', '/api/articles')).body;
+    check('feed: the snapshot the server returned is accepted', (await call('GET', '/api/articles?page=2&snapshot=' + encodeURIComponent(first.snapshot))).status === 200);
+    for (const snap of ['0', 'x', '2026-01-01', '1', 'yesterday', '2026-13-45T00:00:00Z']) await bad(`feed: snapshot=${snap} -> 400`, `/api/articles?snapshot=${encodeURIComponent(snap)}`);
+    await bad('feed: snapshot given twice (an array) -> 400', `/api/articles?snapshot=${encodeURIComponent(first.snapshot)}&snapshot=${encodeURIComponent(first.snapshot)}`);
+    await bad('feed: snapshot[]=... -> 400', '/api/articles?snapshot[]=2026-01-01T00:00:00.000Z');
+    const badUrl = await call('GET', '/articles/%E0%A4%A');
+    check('a broken %-escape in the address -> 400 page in Hebrew, without the English framework message', badUrl.status === 400 && /הכתובת שהוזנה אינה תקינה/.test(badUrl.text) && !/Failed to decode/.test(badUrl.text), badUrl.status);
+    check('the same on an API address answers JSON in Hebrew', (await call('GET', '/api/comments/%E0%A4%A')).status === 400 && /אינה תקינה/.test((await call('GET', '/api/comments/%E0%A4%A')).text));
+    check('none of these bad requests caused a server error in the log', !fs.readFileSync(LOG).subarray(logStart).toString('utf8').split('\n').some((l) => / ERROR /.test(l) && !/Weather fetch failed/.test(l)));
+  }
 
   // ---------------------------------------------------------------- J. performance with 500 articles
   sec('J. Performance (500 articles, ~75k view buckets)');

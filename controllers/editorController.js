@@ -8,17 +8,13 @@ const { getArticleStats, getOverallStats } = require('../services/viewService');
 const { transition } = require('../services/articleService');
 const { isValidImageLink } = require('../services/imageLink');
 const { httpError } = require('../middleware/errorHandler');
+const { parsePage, parseSearchText, escapeRegex } = require('../services/queryParams');
 const logger = require('../config/logger');
 const { STATUS, STATUS_LABELS_HE, CATEGORY_LABELS_HE, PAGE_SIZE } = require('../config/constants');
 
 const STATUSES = Object.values(STATUS);
 const MAX_QUERY_LENGTH = 100;
 const MAX_NOTE_LENGTH = 1000;
-
-// Escape characters that have a special meaning in a regex, so searching "C++" or "(" can't break the query
-function escapeRegex(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 // Looks the article up; a malformed id is a 400, a missing article a 404 (both handled by errorHandler)
 async function loadArticle(id) {
@@ -90,14 +86,15 @@ exports.analyticsPage = (req, res) => {
 // All articles for the editor dashboard, newest activity first, plus a count per status for the filter chips.
 exports.list = async (req, res, next) => {
   try {
-    const filter = STATUSES.includes(req.query.status) ? { status: req.query.status } : {};
-    const q = String(req.query.q || '').trim();
-    if (q.length > MAX_QUERY_LENGTH) throw httpError(400, 'טקסט החיפוש ארוך מדי');
+    // includes() compares with ===, so an array or an object (?status[$ne]=x) is rejected too
+    if (req.query.status !== undefined && !STATUSES.includes(req.query.status)) throw httpError(400, 'מצב כתבה לא תקין');
+    const filter = req.query.status ? { status: req.query.status } : {};
+    const q = parseSearchText(req.query.q, MAX_QUERY_LENGTH);
     if (q) {
       const rx = { $regex: escapeRegex(q), $options: 'i' };
       filter.$or = [{ 'published.title': rx }, { 'draft.title': rx }];
     }
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const page = parsePage(req.query.page);
 
     const [docs, grouped] = await Promise.all([
       Article.find(filter)

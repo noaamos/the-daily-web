@@ -17,6 +17,8 @@ function notFound(req, res) {
 
 // Turns any error into { status, message } with a Hebrew message that is safe to show the user
 function describe(err) {
+  // A broken %-escape in the address, e.g. /articles/%E0%A4%A - Express raises it with an English message
+  if (err instanceof URIError) return { status: 400, message: 'הכתובת שהוזנה אינה תקינה' };
   // Our own errors (httpError, articleService) already have a status and a Hebrew message
   if (err.status && !err.type) return { status: err.status, message: err.message };
   // Broken JSON / body too large - thrown by express.json() before our code runs

@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const Article = require('../models/Article');
 const { transition } = require('../services/articleService');
 const { isValidImageLink } = require('../services/imageLink');
+const { parsePage } = require('../services/queryParams');
 const { httpError } = require('../middleware/errorHandler');
 const logger = require('../config/logger');
 const { STATUS, CATEGORIES, STATUS_LABELS_HE, CATEGORY_LABELS_HE, PAGE_SIZE } = require('../config/constants');
@@ -121,8 +122,7 @@ exports.editPage = async (req, res, next) => {
 //           The filters do not change them: they are the numbers shown on the filter chips.
 exports.listMine = async (req, res, next) => {
   try {
-    const page = req.query.page === undefined ? 1 : Number(req.query.page);
-    if (!Number.isInteger(page) || page < 1) throw httpError(400, 'מספר עמוד לא תקין');
+    const page = parsePage(req.query.page);
     const { status, unsent } = req.query;
     // includes() compares with ===, so an array or an object (?status[$ne]=x) is rejected too
     if (status !== undefined && !STATUSES.includes(status)) throw httpError(400, 'מצב כתבה לא תקין');

@@ -5,6 +5,7 @@ const DeviceView = require('../models/DeviceView');
 const viewService = require('../services/viewService');
 const weatherService = require('../services/weatherService');
 const logger = require('../config/logger');
+const { parsePage, parseSearchText, escapeRegex } = require('../services/queryParams');
 const { CATEGORIES, CATEGORY_LABELS_HE, PAGE_SIZE } = require('../config/constants');
 
 const SORTS = {
@@ -12,6 +13,10 @@ const SORTS = {
   popular: { viewCount: -1, _id: -1 },
 };
 const VIEWED_OPTIONS = ['all', 'viewed', 'unviewed'];
+// hasOwn: a plain `SORTS[value]` would also "find" inherited names like "constructor" or "toString"
+const isSort = (value) => typeof value === 'string' && Object.hasOwn(SORTS, value);
+// the moment of the first page, as the server writes it (toISOString): the next pages send it back unchanged
+const SNAPSHOT_FORMAT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 const MAX_QUERY_LENGTH = 100;
 // Front page takes the newest articles, each used once: 4 carousel slides, 2 medium cards, 4 in "latest news", 4 in the picks row
 const FRONT_CARDS = 14;
@@ -55,7 +60,7 @@ exports.homePage = async (req, res, next) => {
       q: String(req.query.q || '').slice(0, MAX_QUERY_LENGTH),
       category: CATEGORIES.includes(req.query.category) ? req.query.category : '',
       viewed: VIEWED_OPTIONS.includes(req.query.viewed) ? req.query.viewed : 'all',
-      sort: SORTS[req.query.sort] ? req.query.sort : 'date',
+      sort: isSort(req.query.sort) ? req.query.sort : 'date',
     };
     const [latest, mostRead] = await Promise.all([findCards(SORTS.date, FRONT_CARDS), findCards(SORTS.popular, 5)]);
     const cards = latest.map(toCard);
@@ -136,11 +141,6 @@ exports.articlePage = async (req, res, next) => {
   }
 };
 
-// Escape characters that have a special meaning in a regex, so searching "C++" or "(" can't break the query
-function escapeRegex(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 function badRequest(message) {
   const err = new Error(message);
   err.status = 400;
@@ -149,11 +149,8 @@ function badRequest(message) {
 
 // Reads the query string and validates it. Missing values get defaults; invalid values throw a 400 error.
 function parseFeedQuery(query) {
-  const page = query.page === undefined ? 1 : Number(query.page);
-  if (!Number.isInteger(page) || page < 1) throw badRequest('מספר עמוד לא תקין');
-
-  const q = String(query.q || '').trim();
-  if (q.length > MAX_QUERY_LENGTH) throw badRequest('טקסט החיפוש ארוך מדי');
+  const page = parsePage(query.page);
+  const q = parseSearchText(query.q, MAX_QUERY_LENGTH);
 
   const category = query.category || '';
   if (category && !CATEGORIES.includes(category)) throw badRequest('קטגוריה לא קיימת');
@@ -162,12 +159,16 @@ function parseFeedQuery(query) {
   if (!VIEWED_OPTIONS.includes(viewed)) throw badRequest('ערך סינון צפייה לא תקין');
 
   const sort = query.sort || 'date';
-  if (!SORTS[sort]) throw badRequest('סוג מיון לא תקין');
+  if (!isSort(sort)) throw badRequest('סוג מיון לא תקין');
 
   // snapshot: the moment the first page was loaded. Later pages only include articles published
   // up to that moment, so a newly published article can't push items down and cause duplicates.
-  const snapshot = query.snapshot ? new Date(query.snapshot) : new Date();
-  if (Number.isNaN(snapshot.getTime())) throw badRequest('snapshot לא תקין');
+  let snapshot = new Date();
+  if (query.snapshot !== undefined) {
+    if (typeof query.snapshot !== 'string' || !SNAPSHOT_FORMAT.test(query.snapshot)) throw badRequest('snapshot לא תקין');
+    snapshot = new Date(query.snapshot);
+    if (Number.isNaN(snapshot.getTime())) throw badRequest('snapshot לא תקין');
+  }
 
   return { page, q, category, viewed, sort, snapshot };
 }

@@ -6,6 +6,7 @@ const Article = require('../models/Article');
 const logger = require('../config/logger');
 const { ROLES } = require('../config/constants');
 const { httpError } = require('../middleware/errorHandler');
+const { parseSearchText, escapeRegex } = require('../services/queryParams');
 
 const BCRYPT_ROUNDS = 10;
 const USERNAME_RE = /^[a-z0-9._-]{3,30}$/; // checked after lowercasing
@@ -15,11 +16,6 @@ const DISPLAY_NAME_MAX = 50;
 // Never send passwordHash to the browser
 function toPublic(u) {
   return { _id: u._id, username: u.username, displayName: u.displayName, role: u.role, createdAt: u.createdAt };
-}
-
-// Escape regex special characters so a search like "a.b" or "(" is treated as plain text
-function escapeRegex(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // Validators: each returns the clean value or throws a 400 error with a Hebrew message
@@ -52,7 +48,7 @@ async function findUserOr404(id) {
 // GET /api/users?q= -> { users: [...] }  search by username or display name
 exports.list = async (req, res, next) => {
   try {
-    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const q = parseSearchText(req.query.q, 100);
     const filter = {};
     if (q) {
       const re = new RegExp(escapeRegex(q), 'i');
