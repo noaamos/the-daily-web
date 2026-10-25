@@ -110,7 +110,8 @@
   </main>
 
   <!-- Sidebar starts at the top of the page: weather, then the most read articles, then the latest news -->
-  <aside class="sidebar sidebar-tall">
+  <%# is-filtered: a search / category is active, so phones and tablets hide these boxes (see public.css) %>
+  <aside class="sidebar sidebar-tall<%= showFront ? '' : ' is-filtered' %>">
     <%- include('../partials/weather') %>
     <%- include('../partials/sidebar-news', { mostRead: front.mostRead, latest: front.latest }) %>
   </aside>

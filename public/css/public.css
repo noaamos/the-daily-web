@@ -83,6 +83,15 @@
   .layout > .sidebar.sidebar-after > :is(.trending, .front-latest) { order: 4; }
 }
 
+/* Phones and tablets (portrait or landscape; a narrow desktop window counts too): the weather, "latest news" and "most read"
+   boxes belong to the main home page only. They are hidden on an article page (.sidebar-after) and on the home page
+   while a search or a category from the top bar is active (.is-filtered: written by the server, toggled by feed.js).
+   A desktop screen is not affected: it shows them everywhere, as before. */
+@media (max-width: 1024px), (hover: none) and (pointer: coarse) {
+  .layout > .sidebar.sidebar-after,
+  .layout > .sidebar.is-filtered { display: none; }
+}
+
 /* ---- Strip of picks: row of image cards (same look as the feed cards) ---- */
 .front-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--gap); }
 .front-strip::before {

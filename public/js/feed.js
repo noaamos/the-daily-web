@@ -14,6 +14,7 @@
     sort: document.getElementById('sort'),
   };
   const frontEl = document.getElementById('front');
+  const sidebarEl = document.querySelector('.layout > .sidebar');
   const feedTitle = document.getElementById('feed-title');
   const navLinks = document.querySelectorAll('.category-nav a[data-category]');
 
@@ -117,6 +118,8 @@
   function applyFrontVisibility() {
     if (state.hideFront === undefined) return; // nothing was searched yet: keep what the server rendered
     if (frontEl) frontEl.hidden = state.hideFront;
+    // phones and tablets also hide the weather / latest / most read boxes then (the rule is in public.css)
+    if (sidebarEl) sidebarEl.classList.toggle('is-filtered', state.hideFront);
   }
 
   async function loadNextPage() {

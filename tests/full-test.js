@@ -551,6 +551,13 @@ async function reporterTests() {
   check('SEO: meta description + og tags', /<meta name="description"/.test(art.text) && /og:title/.test(art.text));
   check('SEO: semantic tags (article/h1)', /<article/.test(art.text) && /<h1/.test(art.text));
   check('<html lang="he" dir="rtl">', /<html lang="he" dir="rtl">/.test(art.text));
+  { // Phones and tablets show the weather / latest news / most read boxes on the main home page only (rules in public.css).
+    // The server marks the pages where they are hidden: filtered home pages (is-filtered) and article pages (sidebar-after).
+    const aside = async (url) => ((await call('GET', url)).text.match(/<aside class="sidebar[^"]*"/) || [''])[0];
+    check('home page: the sidebar is not marked as filtered', !/is-filtered/.test(await aside('/')) && /sidebar/.test(await aside('/')));
+    for (const url of ['/?category=sports', '/?q=a', '/?viewed=viewed']) check(`home page ${url}: the sidebar is marked as filtered`, /is-filtered/.test(await aside(url)));
+    check('article page: the sidebar is marked sidebar-after (hidden on phones and tablets)', /sidebar-after/.test(await aside(`/articles/${published._id}`)));
+  }
   for (const [label, a] of [['draft', draftArt], ['pending without published version', pendingNew]]) {
     check(`${label} article page is 404`, (await call('GET', `/articles/${a._id}`)).status === 404);
   }
