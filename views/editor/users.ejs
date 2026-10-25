@@ -1,5 +1,5 @@
 <%- include('../partials/head', { styles: ['/css/editor.css', '/css/users.css'] }) %>
-<%- include('../partials/header') %>
+<%- include('../partials/header', { hideCategoryNav: true }) %>
 <main class="editor-page users-page" data-current-user-id="<%= user._id %>">
   <h1 class="section-title">ניהול משתמשים</h1>
   <p class="muted editor-intro">כתבים ועורכים במערכת. אפשר לחפש, להוסיף משתמש, לערוך פרטים ולמחוק משתמש שאין לו כתבות.</p>
