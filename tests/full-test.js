@@ -690,6 +690,53 @@ async function reporterTests() {
     check('DELETE again -> 404, and PUT on the deleted comment -> 404', (await call('DELETE', url(c1), { cookie: E })).status === 404 && (await call('PUT', url(c1), { cookie: E, json: { text: 'x' } })).status === 404);
   }
 
+  // ---------------------------------------------------------------- E4. comment limit (3 per minute per device)
+  sec('E4. Comment limit: a guest may post 3 comments per minute (device cookie or IP address)');
+  {
+    // Comments of the last 2 minutes would count against the guest of this test (same machine = same IP): remove them
+    const clearRecent = () => Comment.deleteMany({ createdAt: { $gte: new Date(Date.now() - 2 * 60 * 1000) }, deviceId: { $not: /^(seed-device|e3-test)/ } });
+    const postAs = (cookie, n) => call('POST', `/api/comments/${published._id}`, { cookie, json: { authorName: 'מגיב', text: `תגובת בדיקה ${n}` } });
+    const device = (n) => `dw_device=00000000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`;
+    const guestCount = () => Comment.countDocuments({ createdAt: { $gte: new Date(Date.now() - 2 * 60 * 1000) }, deviceId: { $not: /^(seed-device|e3-test)/ } });
+
+    await clearRecent();
+    // a client that sends no cookie at all gets a new device id with every request (a plain script, curl in a loop)
+    const noCookie = [];
+    for (let i = 0; i < 5; i++) noCookie.push(await postAs(undefined, i));
+    check('no cookie at all: comments 1-3 accepted, 4th and 5th blocked (429)', noCookie.map((r) => r.status).join() === '201,201,201,429,429', noCookie.map((r) => r.status).join());
+    check('the 429 answer has the Hebrew message, retryAfter and a Retry-After header', typeof noCookie[3].body.error === 'string' && /3 תגובות בדקה/.test(noCookie[3].body.error) && noCookie[3].body.retryAfter >= 1 && Number(noCookie[3].headers.get('retry-after')) >= 1);
+    check('only 3 comments were saved, and they carry the IP address', (await guestCount()) === 3 && await Comment.countDocuments({ text: /^תגובת בדיקה/, ip: { $type: 'string' } }) === 3);
+    check('the blocked comments were not saved', !(await Comment.exists({ text: 'תגובת בדיקה 3' })) && !(await Comment.exists({ text: 'תגובת בדיקה 4' })));
+
+    // the same client, but a different browser cookie each time, all at the same moment (the race: count, then save)
+    await clearRecent();
+    const parallelNoCookie = await Promise.all(Array.from({ length: 12 }, (_, i) => postAs(undefined, i)));
+    check('12 simultaneous comments without cookie: exactly 3 accepted, 9 blocked', parallelNoCookie.filter((r) => r.status === 201).length === 3 && parallelNoCookie.filter((r) => r.status === 429).length === 9, parallelNoCookie.map((r) => r.status).join());
+    check('12 simultaneous comments: exactly 3 saved', (await guestCount()) === 3, await guestCount());
+
+    // the same device cookie, all at the same moment
+    await clearRecent();
+    const parallelSame = await Promise.all(Array.from({ length: 12 }, (_, i) => postAs(device(1), i)));
+    check('12 simultaneous comments with one device cookie: exactly 3 accepted, 9 blocked', parallelSame.filter((r) => r.status === 201).length === 3 && parallelSame.filter((r) => r.status === 429).length === 9, parallelSame.map((r) => r.status).join());
+    check('12 simultaneous comments with one device cookie: exactly 3 saved', (await guestCount()) === 3);
+
+    // limit is per minute: after the window the same guest may comment again
+    await clearRecent();
+    await Comment.insertMany([0, 1, 2].map((n) => ({ article: published._id, authorName: 'מגיב', text: `ישנה ${n}`, deviceId: 'old-device', ip: '127.0.0.1', createdAt: new Date(Date.now() - 61 * 1000) })));
+    await Comment.insertMany([0, 1, 2].map((n) => ({ article: published._id, authorName: 'מגיב', text: `ישנה ${n}`, deviceId: 'old-device', ip: '::1', createdAt: new Date(Date.now() - 61 * 1000) })));
+    check('comments older than a minute do not count: the guest may comment again', (await postAs(device(2), 'after-window')).status === 201);
+    await Comment.deleteMany({ deviceId: 'old-device' });
+
+    // logged-in staff are not limited, and their comments do not use up the limit of a guest on the same network
+    await clearRecent();
+    const staff = [];
+    for (let i = 0; i < 5; i++) staff.push((await postAs(R, i)).status);
+    check('reporter (logged in) is not limited: 5 comments accepted', staff.join() === '201,201,201,201,201', staff.join());
+    check('staff comments are saved without an IP address', (await Comment.countDocuments({ text: /^תגובת בדיקה/, ip: { $exists: true } })) === 0);
+    check('a guest on the same network can still comment after staff comments', (await postAs(device(3), 'guest')).status === 201);
+    await clearRecent();
+  }
+
   // ---------------------------------------------------------------- F. editor list API
   sec('F. Editor list API');
   const L = await call('GET', '/editor/api/articles', { cookie: E });

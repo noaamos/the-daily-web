@@ -4,6 +4,7 @@ const Comment = require('../models/Comment');
 const Article = require('../models/Article');
 const logger = require('../config/logger');
 const { httpError } = require('../middleware/errorHandler');
+const { clientIp } = require('../middleware/commentLimit');
 
 const NAME_MAX = 50;   // same limits as models/Comment.js
 const TEXT_MAX = 1000;
@@ -40,7 +41,7 @@ exports.list = async (req, res, next) => {
 };
 
 // POST /api/comments/:articleId  body: { authorName, text } -> 201 + the new comment
-// (commentLimit runs before this handler)
+// (commentLimit runs before this handler and keeps the guest's lock until the response is sent)
 exports.create = async (req, res, next) => {
   try {
     const article = await findPublishedArticle(req.params.articleId);
@@ -49,7 +50,10 @@ exports.create = async (req, res, next) => {
     if (!authorName) throw httpError(400, `יש להזין שם (עד ${NAME_MAX} תווים)`);
     if (!text) throw httpError(400, `יש להזין תגובה (עד ${TEXT_MAX} תווים)`);
 
-    const comment = await Comment.create({ article: article._id, authorName, text, deviceId: req.deviceId });
+    // The IP is saved for guests only: it is what the 3-per-minute limit counts (a guest who drops the device cookie
+    // is still the same IP), and staff comments must not use up the limit of a guest on the same network
+    const ip = req.user ? undefined : clientIp(req) || undefined;
+    const comment = await Comment.create({ article: article._id, authorName, text, deviceId: req.deviceId, ip });
     logger.info(`Comment added ${comment._id} on article ${article._id} (device ${req.deviceId})`);
     res.status(201).json(toPublic(comment));
   } catch (err) {
