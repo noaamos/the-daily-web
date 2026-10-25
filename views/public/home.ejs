@@ -12,6 +12,48 @@
     <% if (front.featured) { %>
     <!-- Owner: member 1. "Front page": rendered on the server, hidden while a search / filter is active -->
     <section id="front" class="front" aria-label="כתבות מובילות" <%= showFront ? '' : 'hidden' %>>
+      <div class="front-main">
+        <% if (front.medium.length) { %>
+        <div class="front-side">
+          <% front.medium.forEach((a) => { %>
+          <article class="photo-card photo-card-sm" data-category="<%= a.category %>">
+            <a href="/articles/<%= a.id %>">
+              <% if (a.imageUrl) { %><img src="<%= a.imageUrl %>" alt="" width="600" height="400" loading="lazy"><% } %>
+              <span class="cat-pill"><%= a.categoryLabel %></span>
+              <h3 class="medium-title"><%= a.title %></h3>
+              <span class="photo-arrow" aria-hidden="true">←</span>
+            </a>
+          </article>
+          <% }) %>
+        </div>
+        <% } %>
+
+        <!-- Hero carousel: every slide is in the HTML (readable without JS); carousel.js only switches the visible one -->
+        <section class="carousel" aria-roledescription="carousel" aria-label="כתבה ראשית">
+          <div class="carousel-slides">
+            <% front.slides.forEach((a, i) => { %>
+            <article class="photo-card carousel-slide <%= i === 0 ? 'is-active' : '' %>" data-category="<%= a.category %>" aria-roledescription="slide" aria-label="<%= i + 1 %> מתוך <%= front.slides.length %>">
+              <a href="/articles/<%= a.id %>">
+                <% if (a.imageUrl) { %><img src="<%= a.imageUrl %>" alt="" width="800" height="450" <%= i === 0 ? '' : 'loading="lazy"' %>><% } %>
+                <span class="cat-pill"><%= a.categoryLabel %></span>
+                <h3 class="featured-title"><%= a.title %></h3>
+              </a>
+              <p class="featured-summary"><%= a.summary %></p>
+              <p class="item-meta"><%= a.author %> · <time datetime="<%= iso(a.publishedAt) %>" data-relative><%= fullDate(a.publishedAt) %></time></p>
+            </article>
+            <% }) %>
+          </div>
+          <% if (front.slides.length > 1) { %>
+          <div class="carousel-controls" hidden>
+            <button type="button" class="carousel-btn" data-carousel="prev" aria-label="הכתבה הקודמת">&lsaquo;</button>
+            <button type="button" class="carousel-btn" data-carousel="next" aria-label="הכתבה הבאה">&rsaquo;</button>
+          </div>
+          <div class="carousel-dots" hidden></div>
+          <% } %>
+        </section>
+      </div>
+
+      <% if (front.strip.length) { %>
       <div class="front-strip">
         <% front.strip.forEach((a) => { %>
           <a href="/articles/<%= a.id %>" class="strip-item" data-category="<%= a.category %>">
@@ -20,38 +62,12 @@
           </a>
         <% }) %>
       </div>
-
-      <div class="front-main">
-        <article class="front-featured" data-category="<%= front.featured.category %>">
-          <h2 class="section-label">כתבה ראשית</h2>
-          <a href="/articles/<%= front.featured.id %>">
-            <% if (front.featured.imageUrl) { %><img src="<%= front.featured.imageUrl %>" alt="" width="800" height="450"><% } %>
-            <span class="cat-pill"><%= front.featured.categoryLabel %></span>
-            <h3 class="featured-title"><%= front.featured.title %></h3>
-          </a>
-          <p class="featured-summary"><%= front.featured.summary %></p>
-          <p class="item-meta"><%= front.featured.author %> · <time datetime="<%= iso(front.featured.publishedAt) %>" data-relative><%= fullDate(front.featured.publishedAt) %></time></p>
-        </article>
-
-        <section class="front-latest" aria-labelledby="latest-title">
-          <h2 class="section-label" id="latest-title">חדשות אחרונות</h2>
-          <% front.latest.forEach((a, i) => { %>
-            <a href="/articles/<%= a.id %>" class="list-item <%= i === 0 ? 'list-item-lead' : '' %>" data-category="<%= a.category %>">
-              <% if (i === 0 && a.imageUrl) { %><img src="<%= a.imageUrl %>" alt="" width="400" height="225" loading="lazy"><% } %>
-              <span class="cat-label"><%= a.categoryLabel %></span>
-              <span class="list-title"><%= a.title %></span>
-              <time class="item-meta" datetime="<%= iso(a.publishedAt) %>" data-relative><%= fullDate(a.publishedAt) %></time>
-            </a>
-          <% }) %>
-        </section>
-      </div>
+      <% } %>
     </section>
     <% } %>
 
     <h2 class="section-title" id="feed-title">כל הכתבות</h2>
     <form id="feed-controls" class="feed-controls" role="search">
-      <label for="q" class="visually-hidden">חיפוש כתבות</label>
-      <input type="search" id="q" name="q" placeholder="חיפוש כתבות..." maxlength="100" value="<%= initial.q %>">
       <label for="category" class="visually-hidden">קטגוריה</label>
       <select id="category" name="category">
         <option value="">כל הקטגוריות</option>
@@ -93,8 +109,8 @@
     </template>
   </main>
 
-  <!-- Sidebar starts at the top of the page: weather first, then the most read articles -->
-  <aside class="sidebar">
+  <!-- Sidebar starts at the top of the page: weather, then the most read articles, then the latest news -->
+  <aside class="sidebar sidebar-tall">
     <%- include('../partials/weather') %>
     <% if (front.mostRead.length) { %>
     <section class="trending" aria-labelledby="trending-title">
@@ -110,7 +126,21 @@
       <% }) %>
     </section>
     <% } %>
+    <% if (front.featured && front.latest.length) { %>
+    <!-- Hidden together with #front while a search / filter is active (feed.js) -->
+    <section id="front-latest" class="front-latest" aria-labelledby="latest-title" <%= showFront ? '' : 'hidden' %>>
+      <h2 class="section-label" id="latest-title">חדשות אחרונות</h2>
+      <% front.latest.forEach((a) => { %>
+        <a href="/articles/<%= a.id %>" class="list-item" data-category="<%= a.category %>">
+          <span class="cat-label"><%= a.categoryLabel %></span>
+          <span class="list-title"><%= a.title %></span>
+          <time class="item-meta" datetime="<%= iso(a.publishedAt) %>" data-relative><%= fullDate(a.publishedAt) %></time>
+        </a>
+      <% }) %>
+    </section>
+    <% } %>
   </aside>
 </div>
 <script src="/js/feed.js" defer></script>
+<script src="/js/carousel.js" defer></script>
 <%- include('../partials/footer') %>

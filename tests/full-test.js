@@ -480,8 +480,14 @@ async function reporterTests() {
   check('date sort is newest first', dts.every((v, i) => !i || v <= dts[i - 1]));
   const cat = await call('GET', '/api/articles?category=sports');
   check('category filter', cat.body.articles.length > 0 && cat.body.articles.every((a) => a.category === 'sports'));
-  const srch = await call('GET', '/api/articles?q=' + encodeURIComponent('מספר 12'));
-  check('search finds titles', srch.body.articles.length > 0 && srch.body.articles.every((a) => a.title.includes('מספר 12')));
+  // Search terms come from an article that really is in the database, so the search tests do not depend on the seed's wording
+  const searchSample = await articleOf({ published: { $ne: null } });
+  const searchTitle = searchSample.published.title;
+  const searchWord = (searchTitle.match(/[א-ת]{4,}/) || [searchTitle.split(' ')[0]])[0];
+  const srch = await call('GET', '/api/articles?q=' + encodeURIComponent(searchWord));
+  check('search finds titles', srch.body.articles.length > 0 && srch.body.articles.every((a) => a.title.includes(searchWord)));
+  check('search by a full title finds that article', (await call('GET', '/api/articles?q=' + encodeURIComponent(searchTitle))).body.articles.some((a) => a.id === String(searchSample._id)));
+  check('search for text that is in no title finds nothing', (await call('GET', '/api/articles?q=' + encodeURIComponent('zzqxw-no-such-title'))).body.articles.length === 0);
   check('search with regex chars is safe', (await call('GET', '/api/articles?q=' + encodeURIComponent('(+*['))).status === 200);
   check('only published articles in feed', true);
   const draftArt = await articleOf({ status: 'draft' });
@@ -492,8 +498,9 @@ async function reporterTests() {
   check('draft article never appears in feed', !inFeed);
   const art = await call('GET', `/articles/${published._id}`);
   check('article page 200', art.status === 200);
-  check('SEO: full body in raw HTML', published.published.body.split('\n\n').every((p) => art.text.includes(p)));
-  check('SEO: <title> with article title', art.text.includes(`<title>${published.published.title}`));
+  // The page is HTML: EJS escapes " ' & < > in titles and text, so the expected text is escaped the same way before comparing
+  check('SEO: full body in raw HTML', published.published.body.split('\n\n').every((p) => art.text.includes(ejs.escapeXML(p))));
+  check('SEO: <title> with article title', art.text.includes(`<title>${ejs.escapeXML(published.published.title)}`));
   check('SEO: meta description + og tags', /<meta name="description"/.test(art.text) && /og:title/.test(art.text));
   check('SEO: semantic tags (article/h1)', /<article/.test(art.text) && /<h1/.test(art.text));
   check('<html lang="he" dir="rtl">', /<html lang="he" dir="rtl">/.test(art.text));
@@ -501,7 +508,7 @@ async function reporterTests() {
     check(`${label} article page is 404`, (await call('GET', `/articles/${a._id}`)).status === 404);
   }
   const updPage = await call('GET', `/articles/${pendingUpd._id}`);
-  check('pending update: public still shows OLD published text', updPage.status === 200 && updPage.text.includes(pendingUpd.published.title) && !updPage.text.includes(`>${pendingUpd.draft.title}<`));
+  check('pending update: public still shows OLD published text', updPage.status === 200 && updPage.text.includes(ejs.escapeXML(pendingUpd.published.title)) && !updPage.text.includes(`>${ejs.escapeXML(pendingUpd.draft.title)}<`));
   check('malformed / unknown article id -> 404', (await call('GET', '/articles/xyz')).status === 404 && (await call('GET', '/articles/64b000000000000000000000')).status === 404);
   const wx = await call('GET', '/api/weather');
   check('weather endpoint answers (200 or 503)', [200, 503].includes(wx.status), wx.status);
@@ -663,7 +670,9 @@ async function reporterTests() {
   check('paging through everything yields 500', seen === 500, seen);
   check('page beyond end is empty, not an error', (await call('GET', '/editor/api/articles?page=99999', { cookie: E })).body.articles.length === 0);
   for (const bp of ['-5', 'abc', '1.5', '0']) check(`page=${bp} handled`, (await call('GET', `/editor/api/articles?page=${bp}`, { cookie: E })).status === 200);
-  check('q search works', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent('מספר 12'), { cookie: E })).body.articles.length > 0);
+  check('q search works', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent(searchWord), { cookie: E })).body.articles.length > 0);
+  check('q search by a full title finds that article', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent(searchTitle), { cookie: E })).body.articles.some((a) => a.id === String(searchSample._id)));
+  check('q search for text that is in no title finds nothing', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent('zzqxw-no-such-title'), { cookie: E })).body.articles.length === 0);
   check('q with regex chars is safe', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent('(+*['), { cookie: E })).status === 200);
   check('q over 100 chars -> 400', (await call('GET', '/editor/api/articles?q=' + 'a'.repeat(101), { cookie: E })).status === 400);
   check('q operator injection safe', (await call('GET', '/editor/api/articles?q[$gt]=', { cookie: E })).status === 200);
@@ -805,7 +814,7 @@ async function reporterTests() {
   // ---------------------------------------------------------------- J. performance with 500 articles
   sec('J. Performance (500 articles, ~75k view buckets)');
   const timed = [
-    ['feed page 1', '/api/articles'], ['feed popular', '/api/articles?sort=popular'], ['feed search', '/api/articles?q=' + encodeURIComponent('מספר 1')],
+    ['feed page 1', '/api/articles'], ['feed popular', '/api/articles?sort=popular'], ['feed search', '/api/articles?q=' + encodeURIComponent(searchWord)],
     ['editor list', '/editor/api/articles'], ['editor stats', `/editor/api/articles/${multiArt._id}/stats`], ['article page', `/articles/${anyId}`], ['home page', '/'],
   ];
   for (const [label, u] of timed) {

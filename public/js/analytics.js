@@ -1,7 +1,8 @@
 // Owner: member 4
 // Vanilla JS + fetch() only. No page reloads.
-// Impact Analytics: pick an article, see its views over time (Chart.js), with a marker at every publish/update
-// and a before/after comparison around the selected publish.
+// Impact Analytics: with no article picked, shows the views of all the articles together. Pick an article to see
+// its views over time (Chart.js), with a marker at every publish/update and a before/after comparison around
+// the selected publish.
 (function () {
   const page = document.querySelector('.analytics-page');
   if (!page || typeof Chart === 'undefined') return;
@@ -12,6 +13,7 @@
   const emptyEl = $('chart-empty');
   const sectionEl = $('chart-section');
   const canvas = $('views-chart');
+  const overviewBtn = $('overview-btn');
 
   const HOUR = 60 * 60 * 1000;
   const WINDOW_HOURS = 24; // how far before / after a publish we compare
@@ -240,40 +242,55 @@
   }
 
   // ---- picking an article ----
-  async function selectArticle(id) {
+  // `id` is an article id, or '' for the overview of all the articles together (the default view).
+  let loadRequest = 0;
+  async function loadStats(id) {
+    const mine = ++loadRequest;
+    const overview = !id;
     emptyEl.textContent = 'טוען נתונים...';
     emptyEl.hidden = false;
     sectionEl.hidden = true;
     try {
-      const stats = await getJson(`/editor/api/articles/${id}/stats`);
+      const stats = await getJson(overview ? '/editor/api/stats/overview' : `/editor/api/articles/${id}/stats`);
+      if (mine !== loadRequest) return;
       state.articleId = id;
       state.title = stats.title;
       state.series = buildSeries(stats.buckets);
       state.publishes = stats.publishes.map((p) => new Date(p).getTime()).sort((a, b) => a - b);
       state.selected = state.publishes.length ? state.publishes.length - 1 : -1; // default: latest update
 
+      // publish markers and before/after only make sense for one article
+      $('compare-section').hidden = overview;
+      $('chart-key').hidden = overview;
       $('chart-title').textContent = stats.title;
-      $('chart-total').textContent = `סך הכל ${stats.total.toLocaleString('he-IL')} צפיות · ${state.publishes.length} נקודות פרסום`;
-      canvas.setAttribute('aria-label', `גרף צפיות לאורך זמן לכתבה: ${stats.title}`);
+      $('chart-total').textContent = overview
+        ? `סך הכל ${stats.total.toLocaleString('he-IL')} צפיות בכל הכתבות`
+        : `סך הכל ${stats.total.toLocaleString('he-IL')} צפיות · ${state.publishes.length} נקודות פרסום`;
+      canvas.setAttribute('aria-label', overview ? 'גרף צפיות לאורך זמן של כל הכתבות יחד' : `גרף צפיות לאורך זמן לכתבה: ${stats.title}`);
+
+      const url = new URL(location.href);
+      if (overview) url.searchParams.delete('article');
+      else url.searchParams.set('article', id);
+      history.replaceState(null, '', url);
+      overviewBtn.classList.toggle('active', overview);
+      resultsEl.querySelectorAll('.picker-item').forEach((b) => b.classList.toggle('active', b.dataset.id === id));
 
       if (!state.series.length) {
-        emptyEl.textContent = 'עדיין אין נתוני צפיות לכתבה הזו.';
+        emptyEl.textContent = overview ? 'עדיין אין נתוני צפיות.' : 'עדיין אין נתוני צפיות לכתבה הזו.';
         return;
       }
       emptyEl.hidden = true;
       sectionEl.hidden = false;
-      renderPublishList();
-      renderSummary();
+      if (!overview) {
+        renderPublishList();
+        renderSummary();
+      }
       renderChart();
-
-      const url = new URL(location.href);
-      url.searchParams.set('article', id);
-      history.replaceState(null, '', url);
-      resultsEl.querySelectorAll('.picker-item').forEach((b) => b.classList.toggle('active', b.dataset.id === id));
     } catch (err) {
-      emptyEl.textContent = err.message;
+      if (mine === loadRequest) emptyEl.textContent = err.message;
     }
   }
+  const selectArticle = (id) => loadStats(id);
 
   let searchRequest = 0;
   async function search(q) {
@@ -317,6 +334,8 @@
     renderChart();
   });
 
+  overviewBtn.addEventListener('click', () => loadStats(''));
+
   search('');
-  if (page.dataset.initialArticle) selectArticle(page.dataset.initialArticle);
+  loadStats(page.dataset.initialArticle || '');
 })();

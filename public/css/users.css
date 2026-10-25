@@ -1,8 +1,8 @@
 /* Owner: member 2 - user management screen (/editor/users). Loaded after editor.css and reuses its classes. */
 .users-toolbar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-bottom: 1.25rem; }
-.users-search {
-  flex: 1 1 18rem; padding: 0.45rem 0.8rem; font: inherit;
-  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+/* white pill with a soft shadow, like the home page filter bar (the selector repeats "input" to beat the shared field rule) */
+.users-toolbar input.users-search {
+  flex: 1 1 18rem; padding: 0.55rem 1.1rem; background: var(--surface); border-radius: var(--radius-pill); box-shadow: var(--shadow-card);
 }
 .users-toolbar .btn-accent { padding: 0.45rem 1.2rem; }
 
@@ -19,8 +19,6 @@
 .user-name { font-weight: 600; }
 .user-username { direction: ltr; unicode-bidi: isolate; }
 .user-self { font-size: 0.85rem; color: var(--muted); font-weight: 400; }
-.badge-editor   { background: var(--nav-bg); color: #2F5FB8; }
-.badge-reporter { background: #E8ECF2; color: #4A5468; }
 .row-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .visually-hidden {

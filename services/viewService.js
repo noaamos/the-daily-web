@@ -35,4 +35,19 @@ async function getArticleStats(articleId) {
   };
 }
 
-module.exports = { recordView, getArticleStats };
+// Same shape as getArticleStats, but every article summed together (no publish markers: one line per
+// article would be unreadable, and "before/after" only makes sense for a single article).
+async function getOverallStats() {
+  const buckets = await ViewStat.aggregate([
+    { $group: { _id: '$bucket', count: { $sum: '$count' } } },
+    { $sort: { _id: 1 } },
+  ]);
+  return {
+    title: 'כל הכתבות',
+    total: buckets.reduce((sum, b) => sum + b.count, 0),
+    buckets: buckets.map((b) => ({ t: b._id, count: b.count })),
+    publishes: [],
+  };
+}
+
+module.exports = { recordView, getArticleStats, getOverallStats };

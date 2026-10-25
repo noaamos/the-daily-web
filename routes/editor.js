@@ -18,5 +18,6 @@ router.post('/api/articles/:id/approve', c.approve);     // -> published (draft 
 router.post('/api/articles/:id/return', c.returnForFixes); // body: { note }
 router.delete('/api/articles/:id', c.remove);            // also delete its comments and stats
 router.get('/api/articles/:id/stats', c.stats);          // data for the Impact Analytics chart
+router.get('/api/stats/overview', c.overallStats);       // same chart data, all articles summed
 
 module.exports = router;

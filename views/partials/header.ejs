@@ -6,6 +6,13 @@
   <div class="masthead">
     <span class="masthead-date"><%= new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) %></span>
     <a href="/" class="logo">The Daily Web</a>
+    <%# Home page only: the feed search. It sits in the header but belongs to #feed-controls (form attribute), so feed.js handles it like the filters - live, no reload %>
+    <% if (typeof initial !== 'undefined') { %>
+    <div class="masthead-search" role="search">
+      <label for="q" class="visually-hidden">חיפוש כתבות</label>
+      <input type="search" id="q" name="q" form="feed-controls" placeholder="חיפוש כתבות..." maxlength="100" value="<%= initial.q %>">
+    </div>
+    <% } %>
     <div class="masthead-actions">
       <% if (user && user.role === 'reporter') { %><a href="/reporter" class="masthead-link">הכתבות שלי</a><% } %>
       <% if (user && user.role === 'editor') { %>

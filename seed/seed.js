@@ -1,7 +1,5 @@
 // Owner: member 2
 // Starter seed so everyone has data from day one. Run: npm run seed  (DELETES existing data!)
-// TODO(member 2): grow to 500+ articles, comments, articles updated several times after publishing,
-//                 and view stats over time (coordinate the ViewStat format with member 4).
 require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -10,7 +8,8 @@ const Article = require('../models/Article');
 const Comment = require('../models/Comment');
 const ViewStat = require('../models/ViewStat');
 const DeviceView = require('../models/DeviceView');
-const { STATUS, CATEGORIES } = require('../config/constants');
+const { STATUS } = require('../config/constants');
+const { NEWS } = require('./newsArticles');
 const { seedViewStats } = require('./seedViews');
 const { seedPendingUpdates } = require('./seedUpdates');
 const { seedComments } = require('./seedComments');
@@ -35,17 +34,18 @@ async function seed() {
   const articles = [];
   for (let i = 1; i <= ARTICLE_COUNT; i++) {
     const status = pick(statuses);
+    const story = NEWS[(i - 1) % NEWS.length]; // real stories (see newsArticles.js), repeated to fill all the articles
     const content = {
-      title: `כתבה לדוגמה מספר ${i}`,
-      summary: `תקציר קצר של כתבה ${i}.`,
-      body: `זהו התוכן המלא של כתבה מספר ${i}.\n\nפסקה שנייה לדוגמה.`, // plain text, empty line = new paragraph
+      title: story.title,
+      summary: story.summary,
+      body: story.body, // plain text, empty line = new paragraph
       imageUrl: `https://picsum.photos/seed/dw${i}/800/450`,
     };
     const publishedAt = daysAgo(Math.floor(Math.random() * 30));
     const isPublished = status === STATUS.PUBLISHED;
     articles.push({
       author: pick(reporters)._id,
-      category: pick(CATEGORIES),
+      category: story.category,
       status,
       draft: content,
       published: isPublished ? content : null,

@@ -1,5 +1,4 @@
-// Shared constants. Change only after agreeing with the team.
-
+//shared
 const ROLES = { REPORTER: 'reporter', EDITOR: 'editor' };
 
 const STATUS = {
@@ -27,9 +26,9 @@ const CATEGORY_LABELS_HE = {
   health: 'בריאות',
 };
 
-const PAGE_SIZE = 20;                  // articles per infinite-scroll load
+const PAGE_SIZE = 20; // articles per infinite-scroll load
 const COMMENT_LIMIT = { max: 3, windowMs: 60 * 1000 }; // guest: 3 comments per minute per device
-const WEATHER_CACHE_MS = 15 * 60 * 1000;               // weather data may be up to 15 minutes old
+const WEATHER_CACHE_MS = 15 * 60 * 1000; // weather data may be up to 15 minutes old
 
 module.exports = {
   ROLES, STATUS, STATUS_LABELS_HE, CATEGORIES, CATEGORY_LABELS_HE,
