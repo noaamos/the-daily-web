@@ -134,8 +134,11 @@
 .feed { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: var(--gap); }
 /* Keep the feed area tall while a new search / sort / filter result loads, so the page does not collapse and jump */
 .feed { min-height: 60vh; align-content: start; }
-.feed[aria-busy='true'] { opacity: 0.5; transition: opacity 0.15s; }  /* old results stay visible, dimmed, while new ones load */
+.feed[aria-busy='true'] { opacity: 0.65; transition: opacity 0.3s ease; }  /* old results stay visible, softly dimmed, while a slow search loads */
 @keyframes card-in { from { opacity: 0; transform: translateY(8px); } }
+/* A new search / filter: the whole page cross-fades from the old results to the new ones (View Transitions API) */
+::view-transition-group(root) { animation-duration: 0.2s; animation-timing-function: ease-out; }
+.card.no-enter { animation: none; }  /* those cards arrive together with the cross-fade, not one by one */
 
 .card {
   display: flex; flex-direction: column; padding: 0.75rem;
