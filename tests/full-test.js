@@ -6,6 +6,9 @@
 //          Run it only against a development database:   npm test
 //
 // It starts the server on port 3005 by itself, so stop any other copy of the app that uses that port.
+//
+// Works the same on Windows, macOS and Linux: every program is started with process.execPath (the running Node, so no
+// "npm" / "npm.cmd" / shell differences), file paths are compared after turning \ into /, and nothing needs a .git folder.
 if (!process.argv.includes('--yes')) {
   console.error('This test wipes the database (it runs the seed). Run it with:  npm test   (or: node tests/full-test.js --yes)');
   process.exit(1);
@@ -68,11 +71,29 @@ async function login(username, password) {
   return { status: res.status, location: res.headers.get('location'), cookie: cookies, setCookie: res.headers.getSetCookie() };
 }
 
-function startServer() {
-  server = spawn('node', ['app.js'], { cwd: PROJECT, env: { ...process.env, PORT: String(PORT) }, stdio: 'ignore' });
-  return sleep(3000);
+// Starts the server and waits until it answers (a fixed pause is too short on a slow or busy computer)
+async function startServer() {
+  server = spawn(process.execPath, ['app.js'], { cwd: PROJECT, env: { ...process.env, PORT: String(PORT) }, stdio: 'ignore' });
+  let exited = false;
+  server.once('exit', () => { exited = true; });
+  for (let i = 0; i < 100; i++) { // up to 30 seconds
+    if (exited) throw new Error('the server stopped while starting (is MongoDB running, is port ' + PORT + ' free?)');
+    try { if ((await fetch(BASE + '/auth/login')).status === 200) return; } catch (e) { /* not listening yet */ }
+    await sleep(300);
+  }
+  throw new Error('the server did not answer within 30 seconds');
 }
-async function stopServer() { server.kill(); await sleep(800); }
+// Stops the server and waits until the process is gone (so the port is free for the next start)
+async function stopServer() {
+  const proc = server;
+  await new Promise((resolve) => {
+    if (proc.exitCode !== null || proc.signalCode !== null) return resolve();
+    proc.once('exit', resolve);
+    proc.kill();
+    setTimeout(resolve, 5000);
+  });
+  await sleep(300);
+}
 
 const articleOf = (filter) => Article.findOne(filter).lean();
 
@@ -459,23 +480,31 @@ async function reporterTests() {
     return e.isDirectory() ? walk(p) : [p];
   });
   const files = walk(PROJECT);
-  const jsFiles = files.filter((f) => f.endsWith('.js') && !f.includes('/vendor/'));
+  const rel = (f) => path.relative(PROJECT, f).split(path.sep).join('/'); // "public/js/feed.js" on every system
+  const jsFiles = files.filter((f) => f.endsWith('.js') && !rel(f).startsWith('public/vendor/'));
   jsFiles.forEach((f) => {
-    const r = spawnSync('node', ['--check', f]);
+    const r = spawnSync(process.execPath, ['--check', f]);
     check(`node --check ${path.relative(PROJECT, f)}`, r.status === 0, r.stderr && r.stderr.toString().slice(0, 150));
   });
   files.filter((f) => f.endsWith('.ejs')).forEach((f) => {
     try { ejs.compile(fs.readFileSync(f, 'utf8'), { filename: f }); check(`ejs ${path.relative(PROJECT, f)}`, true); }
     catch (e) { check(`ejs ${path.relative(PROJECT, f)}`, false, e.message.slice(0, 150)); }
   });
-  check('no leftover debug code', !files.some((f) => /\.(js|ejs)$/.test(f) && !f.includes('/vendor/') && !f.includes('/tests/') && /DEBUG-VIEWS|debugViews|debug-views/.test(fs.readFileSync(f, 'utf8'))));
-  check('no secrets committed (.env ignored)', spawnSync('git', ['check-ignore', '.env'], { cwd: PROJECT }).status === 0);
+  check('no leftover debug code', !files.some((f) => /\.(js|ejs)$/.test(f) && !rel(f).startsWith('public/vendor/') && !rel(f).startsWith('tests/') && /DEBUG-VIEWS|debugViews|debug-views/.test(fs.readFileSync(f, 'utf8'))));
+  // Is .env ignored by Git? Ask Git when this is a Git folder; in a downloaded / zipped copy (no .git) read .gitignore itself
+  const gitCheck = fs.existsSync(path.join(PROJECT, '.git')) ? spawnSync('git', ['check-ignore', '.env'], { cwd: PROJECT }) : null;
+  const envIgnored = gitCheck && !gitCheck.error && gitCheck.status !== null
+    ? gitCheck.status === 0
+    : fs.readFileSync(path.join(PROJECT, '.gitignore'), 'utf8').split(/\r?\n/).some((line) => line.trim() === '.env');
+  check('no secrets committed (.env ignored)', envIgnored);
   console.log(`   ${jsFiles.length} JS files, ${files.filter((f) => f.endsWith('.ejs')).length} views checked`);
 
   // ---------------------------------------------------------------- B. seed
   sec('B. Seed');
-  const seedRun = spawnSync('npm', ['run', 'seed'], { cwd: PROJECT, encoding: 'utf8' });
-  check('npm run seed succeeds', seedRun.status === 0, seedRun.stderr);
+  // "npm run seed" runs this script. It is started with Node itself: "npm" is a different file on Windows (npm.cmd)
+  check('package.json: "npm run seed" runs seed/seed.js', JSON.parse(fs.readFileSync(path.join(PROJECT, 'package.json'), 'utf8')).scripts.seed === 'node seed/seed.js');
+  const seedRun = spawnSync(process.execPath, ['seed/seed.js'], { cwd: PROJECT, encoding: 'utf8' });
+  check('seed script succeeds', seedRun.status === 0, seedRun.stderr);
   await mongoose.connect(process.env.MONGO_URI);
   logStart = fs.existsSync(LOG) ? fs.statSync(LOG).size : 0; // only look at lines written during this run
   const total = await Article.countDocuments();
@@ -562,7 +591,9 @@ async function reporterTests() {
     check(`${label} article page is 404`, (await call('GET', `/articles/${a._id}`)).status === 404);
   }
   const updPage = await call('GET', `/articles/${pendingUpd._id}`);
-  check('pending update: public still shows OLD published text', updPage.status === 200 && updPage.text.includes(ejs.escapeXML(pendingUpd.published.title)) && !updPage.text.includes(`>${ejs.escapeXML(pendingUpd.draft.title)}<`));
+  // Only the <h1> is compared: the sidebar of the page lists other articles, and the seed repeats the same titles
+  const updTitle = ((updPage.text.match(/<h1[^>]*>([\s\S]*?)<\/h1>/) || [])[1] || '').trim();
+  check('pending update: public still shows OLD published text', updPage.status === 200 && updTitle === ejs.escapeXML(pendingUpd.published.title) && updTitle !== ejs.escapeXML(pendingUpd.draft.title), updTitle);
   check('malformed / unknown article id -> 404', (await call('GET', '/articles/xyz')).status === 404 && (await call('GET', '/articles/64b000000000000000000000')).status === 404);
   const wx = await call('GET', '/api/weather');
   check('weather endpoint answers (200 or 503)', [200, 503].includes(wx.status), wx.status);
@@ -1050,7 +1081,7 @@ async function reporterTests() {
   // (after L on purpose: the two small programs below write ERROR / FATAL lines to the same log file on purpose)
   sec('M. Process safety net: unhandled rejection is logged, uncaught exception is logged and ends the process');
   check('app.js installs the safety net', /require\('\.\/config\/processHandlers'\)\.install\(\)/.test(fs.readFileSync(path.join(PROJECT, 'app.js'), 'utf8')));
-  const runChild = (code) => spawnSync('node', ['-e', code], { cwd: PROJECT, encoding: 'utf8', timeout: 15000 });
+  const runChild = (code) => spawnSync(process.execPath, ['-e', code], { cwd: PROJECT, encoding: 'utf8', timeout: 15000 });
   const logNow = () => fs.readFileSync(LOG).toString('utf8');
   const rej = runChild("require('./config/processHandlers').install(); Promise.reject(new Error('rejection-test-marker')); setTimeout(() => { console.log('still alive'); process.exit(0); }, 400);");
   check('an unhandled promise rejection does not stop the process', rej.status === 0 && rej.stdout.includes('still alive'), `${rej.status} ${rej.stderr.slice(0, 120)}`);
