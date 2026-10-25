@@ -1,4 +1,4 @@
-// Owner: member 1
+
 const router = require('express').Router();
 const c = require('../controllers/publicController');
 

@@ -1,4 +1,4 @@
-// Owner: member 2 - user management (CRUD), editor only
+
 const router = require('express').Router();
 const c = require('../controllers/userController');
 const { requireRole } = require('../middleware/auth');

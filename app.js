@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('./config/processHandlers').install(); // log errors nobody caught; exit on an uncaught exception
 const path = require('path');
 const express = require('express');
 const session = require('express-session');
@@ -9,9 +10,12 @@ const { CATEGORIES, CATEGORY_LABELS_HE } = require('./config/constants');
 const logger = require('./config/logger');
 const { loadUser } = require('./middleware/auth');
 const deviceId = require('./middleware/deviceId');
+const securityHeaders = require('./middleware/securityHeaders');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
+app.disable('x-powered-by'); // do not tell every visitor which framework runs the server
+app.use(securityHeaders);
 
 // ---- View engine ----
 app.set('view engine', 'ejs');
@@ -30,7 +34,8 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({ mongoUrl: process.env.MONGO_URI }),
-  cookie: { httpOnly: true, maxAge: 1000 * 60 * 60 * 24 * 7 },
+  // sameSite 'lax': the browser does not send the login cookie with a form or request that comes from another website
+  cookie: { httpOnly: true, sameSite: 'lax', maxAge: 1000 * 60 * 60 * 24 * 7 },
 }));
 
 app.use(deviceId);   // req.deviceId - anonymous id per browser (comment rate limit, viewed/unviewed)

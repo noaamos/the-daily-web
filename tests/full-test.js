@@ -1,11 +1,8 @@
-// Full automated test run: seed data, public site, view counting, permissions, editor area, injection attempts,
-// load and server restart. Owner: member 4 (covers the whole system).
-// The reporter area (member 3) is tested in the function reporterTests(), sections R1 to R9.
-//
-// WARNING: this runs `npm run seed`, which DELETES all data in the database from MONGO_URI.
-//          Run it only against a development database:   npm test
-//
-// It starts the server on port 3005 by itself, so stop any other copy of the app that uses that port.
+// Full test suite: public site, views, permissions, reporter/editor flows, security, load, and restarts.
+// Reporter tests: reporterTests() (R1–R9).
+// WARNING: Runs npm run seed, deleting all data at MONGO_URI. Use a development DB only.
+// Starts the server on port 3005; ensure the port is free.
+// Cross-platform (Windows/macOS/Linux) using process.execPath; no .git required.
 if (!process.argv.includes('--yes')) {
   console.error('This test wipes the database (it runs the seed). Run it with:  npm test   (or: node tests/full-test.js --yes)');
   process.exit(1);
@@ -68,11 +65,29 @@ async function login(username, password) {
   return { status: res.status, location: res.headers.get('location'), cookie: cookies, setCookie: res.headers.getSetCookie() };
 }
 
-function startServer() {
-  server = spawn('node', ['app.js'], { cwd: PROJECT, env: { ...process.env, PORT: String(PORT) }, stdio: 'ignore' });
-  return sleep(3000);
+// Starts the server and waits until it answers (a fixed pause is too short on a slow or busy computer)
+async function startServer() {
+  server = spawn(process.execPath, ['app.js'], { cwd: PROJECT, env: { ...process.env, PORT: String(PORT) }, stdio: 'ignore' });
+  let exited = false;
+  server.once('exit', () => { exited = true; });
+  for (let i = 0; i < 100; i++) { // up to 30 seconds
+    if (exited) throw new Error('the server stopped while starting (is MongoDB running, is port ' + PORT + ' free?)');
+    try { if ((await fetch(BASE + '/auth/login')).status === 200) return; } catch (e) { /* not listening yet */ }
+    await sleep(300);
+  }
+  throw new Error('the server did not answer within 30 seconds');
 }
-async function stopServer() { server.kill(); await sleep(800); }
+// Stops the server and waits until the process is gone (so the port is free for the next start)
+async function stopServer() {
+  const proc = server;
+  await new Promise((resolve) => {
+    if (proc.exitCode !== null || proc.signalCode !== null) return resolve();
+    proc.once('exit', resolve);
+    proc.kill();
+    setTimeout(resolve, 5000);
+  });
+  await sleep(300);
+}
 
 const articleOf = (filter) => Article.findOne(filter).lean();
 
@@ -121,10 +136,10 @@ async function reporterTests() {
 
   // ---------------------------------------------------------------- R1. my articles
   sec('R1. Reporter: "My articles" list');
-  async function allRows(cookie) {
+  async function allRows(cookie, filter = '') { // filter: extra query string such as '&status=draft'
     const rows = []; const sizes = []; let more = true;
     for (let p = 1; more && p <= 60; p++) {
-      const r = await call('GET', `/reporter/api/articles?page=${p}`, { cookie });
+      const r = await call('GET', `/reporter/api/articles?page=${p}${filter}`, { cookie });
       rows.push(...r.body.articles); sizes.push(r.body.articles.length); more = r.body.hasMore;
     }
     return { rows, sizes };
@@ -141,7 +156,32 @@ async function reporterTests() {
   check('a note appears only on returned articles', mine1.rows.every((a) => (a.status === 'returned') === Boolean(a.editorNote)));
   check('page beyond the last is empty', (await call('GET', '/reporter/api/articles?page=999', { cookie: R1 })).body.articles.length === 0);
   for (const q of ['abc', '0', '-3', '1.5', '']) check(`page=${q || '(empty)'} -> 400`, (await call('GET', `/reporter/api/articles?page=${q}`, { cookie: R1 })).status === 400);
+  // status filter and counts (the chips on the dashboard)
+  const dbCounts = async (author) => {
+    const c = { total: await Article.countDocuments({ author }) };
+    for (const s of ['draft', 'pending', 'returned', 'published']) c[s] = await Article.countDocuments({ author, status: s });
+    return c;
+  };
+  const countsOf = async (cookie, filter = '') => (await call('GET', `/reporter/api/articles?page=1${filter}`, { cookie })).body.counts;
+  const wanted1 = await dbCounts(u1._id);
+  const got1 = await countsOf(R1);
+  check('counts: per status and total equal the database, for the reporter only', ['total', 'draft', 'pending', 'returned', 'published'].every((k) => got1[k] === wanted1[k]), JSON.stringify(got1));
+  check('counts: the states add up to the total', got1.draft + got1.pending + got1.returned + got1.published === got1.total);
+  const got2 = await countsOf(R2);
+  const wanted2 = await dbCounts(u2._id);
+  check('counts: another reporter gets his own numbers', ['total', 'draft', 'pending', 'returned', 'published'].every((k) => got2[k] === wanted2[k]));
+  for (const s of ['draft', 'pending', 'returned', 'published']) {
+    const f = await allRows(R1, `&status=${s}`);
+    check(`filter ${s}: every article of that state, all his own, none twice`, f.rows.length === wanted1[s] && f.rows.every((a) => a.status === s) && !f.rows.some((a) => mine2.rows.some((b) => b.id === a.id)) && new Set(f.rows.map((a) => a.id)).size === f.rows.length, `${f.rows.length} of ${wanted1[s]}`);
+    check(`filter ${s}: every page except the last has exactly 20 rows`, f.sizes.slice(0, -1).every((n) => n === 20));
+  }
+  check('counts do not change with the filter', JSON.stringify(await countsOf(R1, '&status=draft')) === JSON.stringify(got1));
+  for (const bad of ['status=banana', 'status=', 'status=DRAFT', 'status[$ne]=draft', 'status=draft&status=pending', 'unsent=2', 'unsent=', 'unsent=true']) {
+    check(`bad filter "${bad}" -> 400`, (await call('GET', `/reporter/api/articles?page=1&${bad}`, { cookie: R1 })).status === 400);
+  }
+  check('unsent=1 in a state without unsent changes finds nothing', (await call('GET', '/reporter/api/articles?page=1&status=draft&unsent=1', { cookie: R1 })).body.articles.length === 0);
   check('anonymous -> 401', (await call('GET', '/reporter/api/articles')).status === 401);
+  check('anonymous with a filter -> 401, editor with a filter -> 403', (await call('GET', '/reporter/api/articles?status=draft')).status === 401 && (await call('GET', '/reporter/api/articles?status=draft', { cookie: E })).status === 403);
   check('editor -> 403', (await call('GET', '/reporter/api/articles', { cookie: E })).status === 403);
   check('dashboard page: anonymous is sent to the login', (await call('GET', '/reporter')).status === 302);
   check('dashboard page: reporter 200, editor 403', (await call('GET', '/reporter', { cookie: R1 })).status === 200 && (await call('GET', '/reporter', { cookie: E })).status === 403);
@@ -188,6 +228,9 @@ async function reporterTests() {
     'missing fields': undefined, 'title is a number': { title: 5 }, 'title is an object': { title: { $ne: 1 } },
     'title 201 characters': { title: L('a', 201) }, 'summary 501': { summary: L('a', 501) }, 'body 50001': { body: L('a', 50001) },
     'image 501': { imageUrl: 'http://x.com/' + L('a', 495) }, 'javascript: link': { imageUrl: 'javascript:alert(1)' }, 'ftp link': { imageUrl: 'ftp://x.com/a.png' },
+    'relative link': { imageUrl: '/img/a.png' }, 'data: link': { imageUrl: 'data:text/html,x' },
+    'bare http://': { imageUrl: 'http://' }, 'bare https://': { imageUrl: 'https://' }, 'no host': { imageUrl: 'http:///' },
+    'space in the host': { imageUrl: 'http://exa mple.com/a.png' }, 'host is only a dot': { imageUrl: 'http://.' }, 'host is only a dash': { imageUrl: 'https://-' },
     'unknown category': { category: 'xyz' }, 'category is an object': { category: { $ne: null } },
   };
   for (const [name, fields] of Object.entries(rejected)) {
@@ -195,6 +238,10 @@ async function reporterTests() {
     check(`rejected: ${name} -> 400`, r.status === 400, r.status);
   }
   check('nothing was changed by all the rejected saves', (await snap(D)) === baseSnap);
+  for (const link of ['https://example.com/a.png?x=1#y', 'HTTPS://Example.COM/A.png', 'http://localhost:3000/a.png', 'http://127.0.0.1/a.png']) {
+    check(`a real address is accepted: ${link}`, (await save(R1, D, { ...good, imageUrl: link })).status === 200 && (await db(D)).draft.imageUrl === link);
+  }
+  await save(R1, D, good); // back to the saved draft the next checks expect
   const forgedSave = await save(R1, D, { ...good, status: 'published', author: String(u2._id), published: { title: 'hack' }, editorNote: 'x', viewCount: 999 });
   const fsnap = await db(D);
   check('forged fields in a save are ignored', forgedSave.status === 200 && fsnap.status === 'draft' && fsnap.published === null && fsnap.editorNote === '' && String(fsnap.author) === String(u1._id) && fsnap.viewCount === 0);
@@ -329,6 +376,13 @@ async function reporterTests() {
   check('the public still sees version 1', (await live()).includes('גוף גרסה 1') && !(await live()).includes('גוף גרסה 2'));
   prow = await rowOf(R1, P);
   check('list: "unsent changes"', prow.unsentChanges === true && prow.status === 'published');
+  // the "unsent changes" filter
+  const unsentRows = await allRows(R1, '&unsent=1');
+  const unsentCount = (await countsOf(R1)).unsent;
+  check('unsent filter: lists this article, and only articles that really have unsent changes', unsentRows.rows.some((a) => a.id === P) && unsentRows.rows.every((a) => a.unsentChanges === true && a.status === 'published'));
+  check('unsent filter: the count equals the number of rows', unsentCount === unsentRows.rows.length && unsentCount >= 1, `${unsentCount} vs ${unsentRows.rows.length}`);
+  check('unsent filter works together with the "published" filter', (await allRows(R1, '&status=published&unsent=1')).rows.length === unsentRows.rows.length);
+  check('unsent filter: another reporter does not see this article', !(await allRows(R2, '&unsent=1')).rows.some((a) => a.id === P));
   const lockSnap = await snap(P);
   check('changing the category of a published article -> 400, nothing changed', (await save(R1, P, { title: `${T} גרסה 2`, body: 'גוף גרסה 2', category: 'sports' })).status === 400 && (await snap(P)) === lockSnap);
   check('sending the same category is fine and the category stays', (await save(R1, P, { title: `${T} גרסה 2`, summary: 'תקציר 2', body: 'גוף גרסה 2', category: 'health' })).status === 200 && (await db(P)).category === 'health');
@@ -341,6 +395,7 @@ async function reporterTests() {
   check('the draft is the published version again, published untouched', reset.draft.title === reset.published.title && reset.draft.body === 'גוף גרסה 1' && reset.published.body === 'גוף גרסה 1');
   prow = await rowOf(R1, P);
   check('list: no unsent changes after cancelling', prow.unsentChanges === false);
+  check('unsent filter: the article and one count are gone after cancelling', !(await allRows(R1, '&unsent=1')).rows.some((a) => a.id === P) && (await countsOf(R1)).unsent === unsentCount - 1);
   check('submitting an update without changes -> 400, status unchanged', (await submit(R1, P)).status === 400 && (await db(P)).status === 'published');
   check('the same refusal for a reporter who never edited (no false update)', (await db(P)).publishHistory.length === 1);
 
@@ -370,6 +425,13 @@ async function reporterTests() {
   page = await editPage(R1, P);
   check('the edit page shows the note, the live-article explanation and the locked category', page.text.includes('צריך מקור לעדכון') && page.text.includes('זה עדכון לכתבה שפורסמה') && /name="category" disabled/.test(page.text));
   check('category still cannot change while the update is returned', (await save(R1, P, { title: `${T} גרסה 2`, body: 'גוף גרסה 2', category: 'tech' })).status === 400);
+  { // the editor returned the update; if the reporter changes nothing there is nothing new to approve
+    const live1 = (await db(P)).published;
+    await save(R1, P, { title: live1.title, summary: live1.summary, body: live1.body, imageUrl: live1.imageUrl });
+    const same = await submit(R1, P);
+    check('a returned update that is identical to the published version cannot be resubmitted (400, clear message)', same.status === 400 && /זהה לגרסה שפורסמה/.test(same.body.error), `${same.status} ${JSON.stringify(same.body)}`);
+    check('the article stays returned and no publish marker was added', (await db(P)).status === 'returned' && (await db(P)).publishHistory.length === 1);
+  }
   check('the reporter fixes the update and submits again', (await save(R1, P, { title: `${T} גרסה 3`, summary: 'תקציר 3', body: 'גוף גרסה 3' })).status === 200 && (await submit(R1, P)).status === 200);
   check('the public still sees version 1', (await live()).includes('גוף גרסה 1'));
 
@@ -412,23 +474,31 @@ async function reporterTests() {
     return e.isDirectory() ? walk(p) : [p];
   });
   const files = walk(PROJECT);
-  const jsFiles = files.filter((f) => f.endsWith('.js') && !f.includes('/vendor/'));
+  const rel = (f) => path.relative(PROJECT, f).split(path.sep).join('/'); // "public/js/feed.js" on every system
+  const jsFiles = files.filter((f) => f.endsWith('.js') && !rel(f).startsWith('public/vendor/'));
   jsFiles.forEach((f) => {
-    const r = spawnSync('node', ['--check', f]);
+    const r = spawnSync(process.execPath, ['--check', f]);
     check(`node --check ${path.relative(PROJECT, f)}`, r.status === 0, r.stderr && r.stderr.toString().slice(0, 150));
   });
   files.filter((f) => f.endsWith('.ejs')).forEach((f) => {
     try { ejs.compile(fs.readFileSync(f, 'utf8'), { filename: f }); check(`ejs ${path.relative(PROJECT, f)}`, true); }
     catch (e) { check(`ejs ${path.relative(PROJECT, f)}`, false, e.message.slice(0, 150)); }
   });
-  check('no leftover debug code', !files.some((f) => /\.(js|ejs)$/.test(f) && !f.includes('/vendor/') && !f.includes('/tests/') && /DEBUG-VIEWS|debugViews|debug-views/.test(fs.readFileSync(f, 'utf8'))));
-  check('no secrets committed (.env ignored)', spawnSync('git', ['check-ignore', '.env'], { cwd: PROJECT }).status === 0);
+  check('no leftover debug code', !files.some((f) => /\.(js|ejs)$/.test(f) && !rel(f).startsWith('public/vendor/') && !rel(f).startsWith('tests/') && /DEBUG-VIEWS|debugViews|debug-views/.test(fs.readFileSync(f, 'utf8'))));
+  // Is .env ignored by Git? Ask Git when this is a Git folder; in a downloaded / zipped copy (no .git) read .gitignore itself
+  const gitCheck = fs.existsSync(path.join(PROJECT, '.git')) ? spawnSync('git', ['check-ignore', '.env'], { cwd: PROJECT }) : null;
+  const envIgnored = gitCheck && !gitCheck.error && gitCheck.status !== null
+    ? gitCheck.status === 0
+    : fs.readFileSync(path.join(PROJECT, '.gitignore'), 'utf8').split(/\r?\n/).some((line) => line.trim() === '.env');
+  check('no secrets committed (.env ignored)', envIgnored);
   console.log(`   ${jsFiles.length} JS files, ${files.filter((f) => f.endsWith('.ejs')).length} views checked`);
 
   // ---------------------------------------------------------------- B. seed
   sec('B. Seed');
-  const seedRun = spawnSync('npm', ['run', 'seed'], { cwd: PROJECT, encoding: 'utf8' });
-  check('npm run seed succeeds', seedRun.status === 0, seedRun.stderr);
+  // "npm run seed" runs this script. It is started with Node itself: "npm" is a different file on Windows (npm.cmd)
+  check('package.json: "npm run seed" runs seed/seed.js', JSON.parse(fs.readFileSync(path.join(PROJECT, 'package.json'), 'utf8')).scripts.seed === 'node seed/seed.js');
+  const seedRun = spawnSync(process.execPath, ['seed/seed.js'], { cwd: PROJECT, encoding: 'utf8' });
+  check('seed script succeeds', seedRun.status === 0, seedRun.stderr);
   await mongoose.connect(process.env.MONGO_URI);
   logStart = fs.existsSync(LOG) ? fs.statSync(LOG).size : 0; // only look at lines written during this run
   const total = await Article.countDocuments();
@@ -504,11 +574,20 @@ async function reporterTests() {
   check('SEO: meta description + og tags', /<meta name="description"/.test(art.text) && /og:title/.test(art.text));
   check('SEO: semantic tags (article/h1)', /<article/.test(art.text) && /<h1/.test(art.text));
   check('<html lang="he" dir="rtl">', /<html lang="he" dir="rtl">/.test(art.text));
+  { // Phones and tablets show the weather / latest news / most read boxes on the main home page only (rules in public.css).
+    // The server marks the pages where they are hidden: filtered home pages (is-filtered) and article pages (sidebar-after).
+    const aside = async (url) => ((await call('GET', url)).text.match(/<aside class="sidebar[^"]*"/) || [''])[0];
+    check('home page: the sidebar is not marked as filtered', !/is-filtered/.test(await aside('/')) && /sidebar/.test(await aside('/')));
+    for (const url of ['/?category=sports', '/?q=a', '/?viewed=viewed']) check(`home page ${url}: the sidebar is marked as filtered`, /is-filtered/.test(await aside(url)));
+    check('article page: the sidebar is marked sidebar-after (hidden on phones and tablets)', /sidebar-after/.test(await aside(`/articles/${published._id}`)));
+  }
   for (const [label, a] of [['draft', draftArt], ['pending without published version', pendingNew]]) {
     check(`${label} article page is 404`, (await call('GET', `/articles/${a._id}`)).status === 404);
   }
   const updPage = await call('GET', `/articles/${pendingUpd._id}`);
-  check('pending update: public still shows OLD published text', updPage.status === 200 && updPage.text.includes(ejs.escapeXML(pendingUpd.published.title)) && !updPage.text.includes(`>${ejs.escapeXML(pendingUpd.draft.title)}<`));
+  // Only the <h1> is compared: the sidebar of the page lists other articles, and the seed repeats the same titles
+  const updTitle = ((updPage.text.match(/<h1[^>]*>([\s\S]*?)<\/h1>/) || [])[1] || '').trim();
+  check('pending update: public still shows OLD published text', updPage.status === 200 && updTitle === ejs.escapeXML(pendingUpd.published.title) && updTitle !== ejs.escapeXML(pendingUpd.draft.title), updTitle);
   check('malformed / unknown article id -> 404', (await call('GET', '/articles/xyz')).status === 404 && (await call('GET', '/articles/64b000000000000000000000')).status === 404);
   const wx = await call('GET', '/api/weather');
   check('weather endpoint answers (200 or 503)', [200, 503].includes(wx.status), wx.status);
@@ -540,6 +619,19 @@ async function reporterTests() {
   const ghost = await ViewStat.countDocuments({ article: draftArt._id });
   await call('GET', `/articles/${draftArt._id}`);
   check('visiting a draft creates no view stats', (await ViewStat.countDocuments({ article: draftArt._id })) === ghost);
+  { // HEAD is not a visit; a normal GET from the same device is
+    const device = 'dw_device=00000000-0000-4000-8000-00000000aaaa';
+    const views = async () => (await Article.findById(target._id).lean()).viewCount;
+    const b = await views();
+    const rows = await DeviceView.countDocuments({ article: target._id });
+    const head = await call('HEAD', `/articles/${target._id}`, { cookie: device });
+    await sleep(600);
+    check('a HEAD request is answered 200 but is not counted as a view, nor marked as "read"', head.status === 200 && (await views()) === b && (await DeviceView.countDocuments({ article: target._id })) === rows, `${head.status} ${b} -> ${await views()}`);
+    await call('GET', `/articles/${target._id}`, { cookie: device });
+    await call('GET', `/articles/${target._id}`, { cookie: device });
+    await sleep(600);
+    check('the same device with normal GET requests (and a refresh) is counted as before: +2', (await views()) === b + 2, `${b} -> ${await views()}`);
+  }
   const gs = await getArticleStats(String(target._id));
   check('getArticleStats: ascending buckets', gs.buckets.every((b, i) => !i || +new Date(b.t) >= +new Date(gs.buckets[i - 1].t)));
   check('getArticleStats: null for bad/unknown id', (await getArticleStats('xyz')) === null && (await getArticleStats('64b000000000000000000000')) === null);
@@ -608,7 +700,7 @@ async function reporterTests() {
     const code = fs.readFileSync(path.join(PROJECT, 'public/js', f), 'utf8');
     check(`${f} never writes data with innerHTML`, !/innerHTML\s*[+]?=/.test(code));
   }
-  check('NoSQL: editor list ignores object-valued status', (await call('GET', '/editor/api/articles?status[$ne]=draft&status[$regex]=.', { cookie: E })).body.articles.length === 20);
+  check('NoSQL: editor list refuses object-valued status (400)', (await call('GET', '/editor/api/articles?status[$ne]=draft&status[$regex]=.', { cookie: E })).status === 400);
   check('editor edit: operator objects in fields rejected', (await call('PUT', `/editor/api/articles/${(await articleOf({ status: 'pending' }))._id}/draft`, { cookie: E, json: { title: { $ne: 1 }, summary: '', body: '', imageUrl: '' } })).status === 400);
   check('editor return: operator object note rejected', (await call('POST', `/editor/api/articles/${(await articleOf({ status: 'pending' }))._id}/return`, { cookie: E, json: { note: { $ne: '' } } })).status === 400);
   check('no server error from any injection attempt', !fs.readFileSync(LOG).subarray(logStart).toString('utf8').split('\n').some((l) => / ERROR /.test(l) && !/Weather fetch failed/.test(l)));
@@ -650,6 +742,98 @@ async function reporterTests() {
     check('DELETE again -> 404, and PUT on the deleted comment -> 404', (await call('DELETE', url(c1), { cookie: E })).status === 404 && (await call('PUT', url(c1), { cookie: E, json: { text: 'x' } })).status === 404);
   }
 
+  // ---------------------------------------------------------------- E4. comment limit (3 per minute per device)
+  sec('E4. Comment limit: a guest may post 3 comments per minute (device cookie or IP address)');
+  {
+    // Comments of the last 2 minutes would count against the guest of this test (same machine = same IP): remove them
+    const clearRecent = () => Comment.deleteMany({ createdAt: { $gte: new Date(Date.now() - 2 * 60 * 1000) }, deviceId: { $not: /^(seed-device|e3-test)/ } });
+    const postAs = (cookie, n) => call('POST', `/api/comments/${published._id}`, { cookie, json: { authorName: 'מגיב', text: `תגובת בדיקה ${n}` } });
+    const device = (n) => `dw_device=00000000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`;
+    const guestCount = () => Comment.countDocuments({ createdAt: { $gte: new Date(Date.now() - 2 * 60 * 1000) }, deviceId: { $not: /^(seed-device|e3-test)/ } });
+
+    await clearRecent();
+    // a client that sends no cookie at all gets a new device id with every request (a plain script, curl in a loop)
+    const noCookie = [];
+    for (let i = 0; i < 5; i++) noCookie.push(await postAs(undefined, i));
+    check('no cookie at all: comments 1-3 accepted, 4th and 5th blocked (429)', noCookie.map((r) => r.status).join() === '201,201,201,429,429', noCookie.map((r) => r.status).join());
+    check('the 429 answer has the Hebrew message, retryAfter and a Retry-After header', typeof noCookie[3].body.error === 'string' && /3 תגובות בדקה/.test(noCookie[3].body.error) && noCookie[3].body.retryAfter >= 1 && Number(noCookie[3].headers.get('retry-after')) >= 1);
+    check('only 3 comments were saved, and they carry the IP address', (await guestCount()) === 3 && await Comment.countDocuments({ text: /^תגובת בדיקה/, ip: { $type: 'string' } }) === 3);
+    check('the blocked comments were not saved', !(await Comment.exists({ text: 'תגובת בדיקה 3' })) && !(await Comment.exists({ text: 'תגובת בדיקה 4' })));
+
+    // the same client, but a different browser cookie each time, all at the same moment (the race: count, then save)
+    await clearRecent();
+    const parallelNoCookie = await Promise.all(Array.from({ length: 12 }, (_, i) => postAs(undefined, i)));
+    check('12 simultaneous comments without cookie: exactly 3 accepted, 9 blocked', parallelNoCookie.filter((r) => r.status === 201).length === 3 && parallelNoCookie.filter((r) => r.status === 429).length === 9, parallelNoCookie.map((r) => r.status).join());
+    check('12 simultaneous comments: exactly 3 saved', (await guestCount()) === 3, await guestCount());
+
+    // the same device cookie, all at the same moment
+    await clearRecent();
+    const parallelSame = await Promise.all(Array.from({ length: 12 }, (_, i) => postAs(device(1), i)));
+    check('12 simultaneous comments with one device cookie: exactly 3 accepted, 9 blocked', parallelSame.filter((r) => r.status === 201).length === 3 && parallelSame.filter((r) => r.status === 429).length === 9, parallelSame.map((r) => r.status).join());
+    check('12 simultaneous comments with one device cookie: exactly 3 saved', (await guestCount()) === 3);
+
+    // limit is per minute: after the window the same guest may comment again
+    await clearRecent();
+    await Comment.insertMany([0, 1, 2].map((n) => ({ article: published._id, authorName: 'מגיב', text: `ישנה ${n}`, deviceId: 'old-device', ip: '127.0.0.1', createdAt: new Date(Date.now() - 61 * 1000) })));
+    await Comment.insertMany([0, 1, 2].map((n) => ({ article: published._id, authorName: 'מגיב', text: `ישנה ${n}`, deviceId: 'old-device', ip: '::1', createdAt: new Date(Date.now() - 61 * 1000) })));
+    check('comments older than a minute do not count: the guest may comment again', (await postAs(device(2), 'after-window')).status === 201);
+    await Comment.deleteMany({ deviceId: 'old-device' });
+
+    // logged-in staff are not limited, and their comments do not use up the limit of a guest on the same network
+    await clearRecent();
+    const staff = [];
+    for (let i = 0; i < 5; i++) staff.push((await postAs(R, i)).status);
+    check('reporter (logged in) is not limited: 5 comments accepted', staff.join() === '201,201,201,201,201', staff.join());
+    check('staff comments are saved without an IP address', (await Comment.countDocuments({ text: /^תגובת בדיקה/, ip: { $exists: true } })) === 0);
+    check('a guest on the same network can still comment after staff comments', (await postAs(device(3), 'guest')).status === 201);
+    await clearRecent();
+  }
+
+  // ---------------------------------------------------------------- E5. security hardening
+  sec('E5. Security hardening (headers, session cookie, login throttle, sessions after a password change)');
+  {
+    const home = await call('GET', '/');
+    check('the server does not announce Express (no X-Powered-By)', home.headers.get('x-powered-by') === null);
+    check('security headers are sent: nosniff, no framing, referrer policy', home.headers.get('x-content-type-options') === 'nosniff' && home.headers.get('x-frame-options') === 'DENY' && Boolean(home.headers.get('referrer-policy')));
+    check('security headers are also on API answers and error pages', (await call('GET', '/api/nothing')).headers.get('x-content-type-options') === 'nosniff' && (await call('GET', '/no/such')).headers.get('x-frame-options') === 'DENY');
+    const sessionCookie = ed.setCookie.find((c) => c.startsWith('connect.sid')) || '';
+    check('the session cookie is HttpOnly and SameSite=Lax', /HttpOnly/i.test(sessionCookie) && /SameSite=Lax/i.test(sessionCookie), sessionCookie.replace(/connect\.sid=[^;]+/, 'connect.sid=...'));
+
+    // ---- login throttle: 5 wrong passwords per account and address
+    const mkUser = (username, role = 'reporter') => call('POST', '/api/users', { cookie: E, json: { username, password: 'secret1', displayName: 'בדיקת אבטחה', role } });
+    const rawLogin = (username, password) => fetch(BASE + '/auth/login', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ username, password }).toString() });
+    const victim = (await mkUser('throttle-victim')).body;
+    const wrong = [];
+    for (let i = 0; i < 5; i++) wrong.push((await rawLogin('throttle-victim', 'wrong' + i)).status);
+    check('5 wrong passwords in a row: all answered 401', wrong.join() === '401,401,401,401,401', wrong.join());
+    const sixth = await rawLogin('throttle-victim', 'wrong5');
+    check('the 6th attempt is refused (429) with a Hebrew message and Retry-After', sixth.status === 429 && Number(sixth.headers.get('retry-after')) > 0 && /יותר מדי ניסיונות/.test(await sixth.text()), sixth.status);
+    const rightButBlocked = await rawLogin('throttle-victim', 'secret1');
+    check('even the RIGHT password is refused while the account is blocked', rightButBlocked.status === 429 && !rightButBlocked.headers.getSetCookie().some((c) => c.startsWith('connect.sid')), rightButBlocked.status);
+    check('other accounts are not affected (the editor can still log in)', (await rawLogin('editor', 'editor123')).status === 302);
+    check('an unknown user name is a plain 401 (it does not reveal that the account is blocked or missing)', (await rawLogin('no-such-user-xyz', 'x')).status === 401);
+    await call('DELETE', `/api/users/${victim._id}`, { cookie: E });
+
+    // ---- a password change ends the old logins
+    const sess = (await mkUser('sess-reporter')).body;
+    const old = await login('sess-reporter', 'secret1');
+    check('the new user can log in and use the reporter area', (await call('GET', '/reporter/api/articles', { cookie: old.cookie })).status === 200);
+    check('the editor changes their password -> 200', (await call('PUT', `/api/users/${sess._id}`, { cookie: E, json: { password: 'newsecret1' } })).status === 200);
+    check('the login made with the OLD password no longer works (401)', (await call('GET', '/reporter/api/articles', { cookie: old.cookie })).status === 401);
+    const fresh = await login('sess-reporter', 'newsecret1');
+    check('logging in with the new password works', fresh.status === 302 && (await call('GET', '/reporter/api/articles', { cookie: fresh.cookie })).status === 200);
+    check('changing something else (display name) keeps the logins', (await call('PUT', `/api/users/${sess._id}`, { cookie: E, json: { displayName: 'שם חדש' } })).status === 200 && (await call('GET', '/reporter/api/articles', { cookie: fresh.cookie })).status === 200);
+    // an editor who changes their OWN password stays logged in on the device they use, other devices are logged out
+    const ed2 = (await mkUser('sess-editor', 'editor')).body;
+    const here = await login('sess-editor', 'secret1');
+    const elsewhere = await login('sess-editor', 'secret1');
+    check('own password change -> 200', (await call('PUT', `/api/users/${ed2._id}`, { cookie: here.cookie, json: { password: 'newsecret2' } })).status === 200);
+    check('the device that changed the password stays logged in', (await call('GET', '/editor/api/articles', { cookie: here.cookie })).status === 200);
+    check('the other device is logged out', (await call('GET', '/editor/api/articles', { cookie: elsewhere.cookie })).status === 401);
+    await call('DELETE', `/api/users/${sess._id}`, { cookie: E });
+    await call('DELETE', `/api/users/${ed2._id}`, { cookie: E });
+  }
+
   // ---------------------------------------------------------------- F. editor list API
   sec('F. Editor list API');
   const L = await call('GET', '/editor/api/articles', { cookie: E });
@@ -660,8 +844,8 @@ async function reporterTests() {
     const r = await call('GET', `/editor/api/articles?status=${s}`, { cookie: E });
     check(`status=${s} filter`, r.body.articles.length > 0 && r.body.articles.every((a) => a.status === s));
   }
-  check('unknown status ignored', (await call('GET', '/editor/api/articles?status=bogus', { cookie: E })).body.articles.length === 20);
-  check('status object injection ignored', (await call('GET', '/editor/api/articles?status[$ne]=draft', { cookie: E })).status === 200);
+  check('unknown status refused (400)', (await call('GET', '/editor/api/articles?status=bogus', { cookie: E })).status === 400);
+  check('status object injection refused (400)', (await call('GET', '/editor/api/articles?status[$ne]=draft', { cookie: E })).status === 400);
   const lp1 = L.body; const lp2 = (await call('GET', '/editor/api/articles?page=2', { cookie: E })).body;
   const idsL = new Set(lp1.articles.map((a) => a.id));
   check('page 2 distinct from page 1', lp2.articles.every((a) => !idsL.has(a.id)));
@@ -669,13 +853,13 @@ async function reporterTests() {
   while (more && page < 40) { const r = (await call('GET', `/editor/api/articles?page=${page}`, { cookie: E })).body; seen += r.articles.length; more = r.hasMore; page++; }
   check('paging through everything yields 500', seen === 500, seen);
   check('page beyond end is empty, not an error', (await call('GET', '/editor/api/articles?page=99999', { cookie: E })).body.articles.length === 0);
-  for (const bp of ['-5', 'abc', '1.5', '0']) check(`page=${bp} handled`, (await call('GET', `/editor/api/articles?page=${bp}`, { cookie: E })).status === 200);
+  for (const bp of ['-5', 'abc', '1.5', '0']) check(`page=${bp} refused (400)`, (await call('GET', `/editor/api/articles?page=${bp}`, { cookie: E })).status === 400);
   check('q search works', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent(searchWord), { cookie: E })).body.articles.length > 0);
   check('q search by a full title finds that article', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent(searchTitle), { cookie: E })).body.articles.some((a) => a.id === String(searchSample._id)));
   check('q search for text that is in no title finds nothing', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent('zzqxw-no-such-title'), { cookie: E })).body.articles.length === 0);
   check('q with regex chars is safe', (await call('GET', '/editor/api/articles?q=' + encodeURIComponent('(+*['), { cookie: E })).status === 200);
   check('q over 100 chars -> 400', (await call('GET', '/editor/api/articles?q=' + 'a'.repeat(101), { cookie: E })).status === 400);
-  check('q operator injection safe', (await call('GET', '/editor/api/articles?q[$gt]=', { cookie: E })).status === 200);
+  check('q operator injection refused (400): an object is not a search text', (await call('GET', '/editor/api/articles?q[$gt]=', { cookie: E })).status === 400);
   check('isUpdate flag matches data', L.body.articles.concat(lp2.articles).every((a) => a.isUpdate === (a.status === 'pending' && !!pubs.find((p) => String(p._id) === a.id))));
   const lite = await call('GET', '/editor/api/articles', { cookie: E });
   check('list response has no sensitive fields', !/passwordHash|deviceId/.test(lite.text));
@@ -710,7 +894,9 @@ async function reporterTests() {
     ['empty title', { ...good, title: '  ' }], ['missing fields', { title: 'x' }], ['title not string', { ...good, title: 5 }],
     ['title too long', { ...good, title: 'a'.repeat(201) }], ['summary too long', { ...good, summary: 'a'.repeat(501) }],
     ['body too long', { ...good, body: 'a'.repeat(50001) }], ['javascript: image', { ...good, imageUrl: 'javascript:alert(1)' }],
-    ['relative image', { ...good, imageUrl: '/etc/passwd' }], ['data: image', { ...good, imageUrl: 'data:text/html,x' }],
+    ['blank body', { ...good, body: '  \n ' }], ['relative image', { ...good, imageUrl: '/etc/passwd' }], ['data: image', { ...good, imageUrl: 'data:text/html,x' }],
+    ['bare http://', { ...good, imageUrl: 'http://' }], ['bare https://', { ...good, imageUrl: 'https://' }],
+    ['image with a space in the host', { ...good, imageUrl: 'http://exa mple.com/a.png' }], ['image host is only a dot', { ...good, imageUrl: 'http://.' }],
   ];
   for (const [label, b] of bodies) check(`edit rejects: ${label}`, (await call('PUT', api('draft')(pa._id), { cookie: E, json: b })).status === 400);
   check('edit rejects broken JSON', (await call('PUT', api('draft')(pa._id), { cookie: E, raw: '{bad' })).status === 400);
@@ -742,6 +928,14 @@ async function reporterTests() {
   check('approve draft -> 400', (await call('POST', api('approve')(draftA._id), { cookie: E })).status === 400);
   check('approve returned -> 400', (await call('POST', api('approve')(retA._id), { cookie: E })).status === 400);
   check('approve published -> 400', (await call('POST', api('approve')(published._id), { cookie: E })).status === 400);
+  { // a pending article without text (it cannot get here through the API any more) must not be published
+    const noText = await Article.create({ author: published.author, category: 'tech', status: 'pending', draft: { title: 'בלי תוכן', body: '  ' } });
+    const ap = await call('POST', api('approve')(noText._id), { cookie: E });
+    check('approve an article without text -> 400 with a clear message, status unchanged', ap.status === 400 && /בלי תוכן/.test(ap.body.error) && (await Article.findById(noText._id).lean()).status === 'pending', ap.status);
+    const noTitle = await Article.create({ author: published.author, category: 'tech', status: 'pending', draft: { title: '', body: 'יש גוף' } });
+    check('approve an article without a title -> 400', (await call('POST', api('approve')(noTitle._id), { cookie: E })).status === 400);
+    await Article.deleteMany({ _id: { $in: [noText._id, noTitle._id] } });
+  }
   check('return draft -> 400', (await call('POST', api('return')(draftA._id), { cookie: E, json: { note: 'x' } })).status === 400);
   for (const [label, b] of [['no body', {}], ['blank', { note: '   ' }], ['number', { note: 5 }], ['array', { note: ['a'] }], ['too long', { note: 'a'.repeat(1001) }]]) {
     check(`return rejects note: ${label}`, (await call('POST', api('return')(pb._id), { cookie: E, json: b })).status === 400);
@@ -811,6 +1005,33 @@ async function reporterTests() {
   check('error pages have no stack traces', !/at .*\.js:\d+/.test(nf.text) && !/node_modules/.test(nf.text));
   check('403 page is HTML for page requests', (await call('GET', '/editor', { cookie: R })).text.includes('אין הרשאה'));
 
+  // ---------------------------------------------------------------- I2. query string validation
+  sec('I2. Query strings: bad input gets a clear 400, never a 500');
+  {
+    const bad = async (label, url, opts) => { const r = await call('GET', url, opts); check(label, r.status === 400, `${r.status} ${typeof r.body === 'string' ? r.body.slice(0, 60) : JSON.stringify(r.body).slice(0, 80)}`); return r; };
+    for (const sort of ['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf']) await bad(`feed: sort=${sort} -> 400`, `/api/articles?sort=${sort}`);
+    check('feed: the real sort values still work', (await call('GET', '/api/articles?sort=popular')).status === 200 && (await call('GET', '/api/articles?sort=date')).status === 200);
+    check('home page with sort=constructor still renders (falls back to the date sort)', (await call('GET', '/?sort=constructor')).status === 200);
+    await bad('feed: search with a null character (%00) -> 400', '/api/articles?q=a%00b');
+    await bad('feed: search with a control character (%07) -> 400', '/api/articles?q=a%07b');
+    await bad('feed: search given twice (an array) -> 400', '/api/articles?q=a&q=b');
+    await bad('editor list: search with a null character -> 400', '/editor/api/articles?q=a%00b', { cookie: E });
+    await bad('user list: search with a null character -> 400', '/api/users?q=a%00b', { cookie: E });
+    check('searching with ordinary punctuation still works', (await call('GET', '/api/articles?q=' + encodeURIComponent('C++ (שלום) [x] $ ^ . * ? | \\'))).status === 200);
+    for (const page of ['1e20', '1e3', '9007199254740993', '100001', '0', '-1', '1.5', 'abc', '%202', '0x10', '+3', '']) await bad(`feed: page=${page || '(empty)'} -> 400`, `/api/articles?page=${page}`);
+    await bad('feed: page given twice (an array) -> 400', '/api/articles?page=1&page=2');
+    check('feed: page=1 and the largest allowed page work', (await call('GET', '/api/articles?page=1')).status === 200 && (await call('GET', '/api/articles?page=100000')).status === 200);
+    const first = (await call('GET', '/api/articles')).body;
+    check('feed: the snapshot the server returned is accepted', (await call('GET', '/api/articles?page=2&snapshot=' + encodeURIComponent(first.snapshot))).status === 200);
+    for (const snap of ['0', 'x', '2026-01-01', '1', 'yesterday', '2026-13-45T00:00:00Z']) await bad(`feed: snapshot=${snap} -> 400`, `/api/articles?snapshot=${encodeURIComponent(snap)}`);
+    await bad('feed: snapshot given twice (an array) -> 400', `/api/articles?snapshot=${encodeURIComponent(first.snapshot)}&snapshot=${encodeURIComponent(first.snapshot)}`);
+    await bad('feed: snapshot[]=... -> 400', '/api/articles?snapshot[]=2026-01-01T00:00:00.000Z');
+    const badUrl = await call('GET', '/articles/%E0%A4%A');
+    check('a broken %-escape in the address -> 400 page in Hebrew, without the English framework message', badUrl.status === 400 && /הכתובת שהוזנה אינה תקינה/.test(badUrl.text) && !/Failed to decode/.test(badUrl.text), badUrl.status);
+    check('the same on an API address answers JSON in Hebrew', (await call('GET', '/api/comments/%E0%A4%A')).status === 400 && /אינה תקינה/.test((await call('GET', '/api/comments/%E0%A4%A')).text));
+    check('none of these bad requests caused a server error in the log', !fs.readFileSync(LOG).subarray(logStart).toString('utf8').split('\n').some((l) => / ERROR /.test(l) && !/Weather fetch failed/.test(l)));
+  }
+
   // ---------------------------------------------------------------- J. performance with 500 articles
   sec('J. Performance (500 articles, ~75k view buckets)');
   const timed = [
@@ -849,6 +1070,19 @@ async function reporterTests() {
   check('log records editor actions', log.some((l) => /Editor editor published article/.test(l)) && log.some((l) => /returned article/.test(l)) && log.some((l) => /deleted article/.test(l)));
   check('log records blocked access', log.some((l) => /Blocked/.test(l)));
   console.log(`   ${log.length} log lines, ${errs.length} unexpected errors`);
+
+  // ---------------------------------------------------------------- M. process safety net (config/processHandlers.js)
+  // (after L on purpose: the two small programs below write ERROR / FATAL lines to the same log file on purpose)
+  sec('M. Process safety net: unhandled rejection is logged, uncaught exception is logged and ends the process');
+  check('app.js installs the safety net', /require\('\.\/config\/processHandlers'\)\.install\(\)/.test(fs.readFileSync(path.join(PROJECT, 'app.js'), 'utf8')));
+  const runChild = (code) => spawnSync(process.execPath, ['-e', code], { cwd: PROJECT, encoding: 'utf8', timeout: 15000 });
+  const logNow = () => fs.readFileSync(LOG).toString('utf8');
+  const rej = runChild("require('./config/processHandlers').install(); Promise.reject(new Error('rejection-test-marker')); setTimeout(() => { console.log('still alive'); process.exit(0); }, 400);");
+  check('an unhandled promise rejection does not stop the process', rej.status === 0 && rej.stdout.includes('still alive'), `${rej.status} ${rej.stderr.slice(0, 120)}`);
+  check('...and is written to the log', /ERROR Unhandled promise rejection: Error: rejection-test-marker/.test(logNow()));
+  const exc = runChild("require('./config/processHandlers').install(); setTimeout(() => { throw new Error('exception-test-marker'); }, 50); setTimeout(() => console.log('must not print'), 600);");
+  check('an uncaught exception ends the process with exit code 1', exc.status === 1 && !exc.stdout.includes('must not print'), `${exc.status}`);
+  check('...after the last line was written to the log (FATAL)', /FATAL Uncaught exception, the server is shutting down: Error: exception-test-marker/.test(logNow()));
 
   await stopServer();
   await mongoose.disconnect();

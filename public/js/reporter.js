@@ -1,6 +1,4 @@
-// Owner: member 3
-// Vanilla JS + fetch() only. No page reloads.
-// "My articles" dashboard: the reporter's own articles with their status and a "load more" button.
+// Reporter dashboard: own articles, status filters, and load more via fetch().
 (function () {
   const rowsEl = document.getElementById('article-rows');
   const statusEl = document.getElementById('list-status');
@@ -12,9 +10,14 @@
   const errorEl = document.getElementById('new-error');
   const submitBtn = document.getElementById('new-submit');
   const cancelBtn = document.getElementById('new-cancel');
+  const chipsEl = document.getElementById('status-filter');
+  const unsentEl = document.getElementById('unsent-filter');
   if (!rowsEl) return; // not the dashboard page
 
-  const state = { nextPage: 1, loading: false, creating: false };
+  const VALID_STATUSES = ['draft', 'returned', 'pending', 'published'];
+// status: '' shows all; unsent filters published articles with unsubmitted changes.
+// requestId ignores stale responses from earlier requests.
+  const state = { nextPage: 1, loading: false, creating: false, status: '', unsent: false, requestId: 0 };
 
   // After submitting an article the edit page sends the reporter here with ?submitted=1: show a short notice, once
   const flashEl = document.getElementById('flash');
@@ -62,7 +65,17 @@
     return data;
   }
 
-  const fetchPage = (page) => api('GET', `/reporter/api/articles?page=${page}`);
+  function listUrl(page) {
+    const query = new URLSearchParams({ page });
+    if (state.status) query.set('status', state.status);
+    if (state.unsent) query.set('unsent', '1');
+    return `/reporter/api/articles?${query}`;
+  }
+
+  // the numbers on the chips and next to the checkbox (they do not depend on the filter)
+  function updateCounts(counts) {
+    document.querySelectorAll('[data-count]').forEach((node) => { node.textContent = counts[node.dataset.count]; });
+  }
 
   function buildRow(a) {
     const meta = el('div', { class: 'row-meta' }, [
@@ -85,26 +98,75 @@
       el('div', { class: 'row-badges' }, badges),
     ]);
   }
-
-  async function loadPage() {
-    if (state.loading) return; // ignore a second click while a request is running
+// reset=true: replace rows from page 1; false: append the next page.
+  async function load(reset) {
+    if (!reset && state.loading) return; // ignore a second click on "load more" while a request is running
+    const mine = ++state.requestId;
     state.loading = true;
     moreBtn.disabled = true;
+    if (reset) {
+      moreBtn.hidden = true;
+      if (!rowsEl.children.length) { statusEl.textContent = 'טוען...'; statusEl.hidden = false; }
+    }
+    const page = reset ? 1 : state.nextPage;
     try {
-      const data = await fetchPage(state.nextPage);
-      state.nextPage += 1; // only after success, so a failed request can simply be retried
+      const data = await api('GET', listUrl(page));
+      if (mine !== state.requestId) return; // a newer request has taken over
+      state.nextPage = page + 1; // only after success, so a failed request can simply be retried
+      if (reset) rowsEl.replaceChildren();
       data.articles.forEach((a) => rowsEl.append(buildRow(a)));
+      updateCounts(data.counts);
       moreBtn.hidden = !data.hasMore;
       statusEl.hidden = rowsEl.children.length > 0;
-      if (!rowsEl.children.length) statusEl.textContent = 'עדיין אין כתבות. לחצו על "כתבה חדשה" כדי להתחיל.';
+      if (!rowsEl.children.length) {
+        statusEl.textContent = data.counts.total === 0 ? 'עדיין אין כתבות. לחצו על "כתבה חדשה" כדי להתחיל.' : 'אין כתבות במצב הזה.';
+      }
     } catch (err) {
+      if (mine !== state.requestId) return;
+      if (reset) rowsEl.replaceChildren(); // do not leave the rows of another filter under the error
       statusEl.textContent = 'טעינת הכתבות נכשלה. נסו שוב או רעננו את הדף.';
       statusEl.hidden = false;
     } finally {
-      state.loading = false;
-      moreBtn.disabled = false;
+      if (mine === state.requestId) {
+        state.loading = false;
+        moreBtn.disabled = false;
+      }
     }
   }
+
+  // ---- filters: status chips, and the "unsent changes" checkbox ----
+  // Unsent changes only exist on published articles, so the checkbox is available for "all" and "published" only
+  const unsentAllowed = () => state.status === '' || state.status === 'published';
+
+  // Shows the current filter (chips, checkbox) and keeps it in the address, so a refresh or a shared link keeps it
+  function syncFilters() {
+    chipsEl.querySelectorAll('.chip').forEach((chip) => {
+      const active = chip.dataset.status === state.status;
+      chip.classList.toggle('active', active);
+      chip.setAttribute('aria-pressed', String(active));
+    });
+    if (!unsentAllowed()) state.unsent = false;
+    unsentEl.checked = state.unsent;
+    unsentEl.disabled = !unsentAllowed();
+    unsentEl.closest('.check-filter').classList.toggle('is-disabled', unsentEl.disabled);
+    const url = new URL(window.location.href);
+    if (state.status) url.searchParams.set('status', state.status); else url.searchParams.delete('status');
+    if (state.unsent) url.searchParams.set('unsent', '1'); else url.searchParams.delete('unsent');
+    window.history.replaceState(null, '', url);
+  }
+
+  chipsEl.addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    state.status = chip.dataset.status;
+    syncFilters();
+    load(true);
+  });
+  unsentEl.addEventListener('change', () => {
+    state.unsent = unsentEl.checked;
+    syncFilters();
+    load(true);
+  });
 
   // ---- new article form ----
   function showForm(show) {
@@ -144,6 +206,11 @@
   newBtn.addEventListener('click', () => showForm(formEl.hidden));
   cancelBtn.addEventListener('click', () => showForm(false));
   formEl.addEventListener('submit', createArticle);
-  moreBtn.addEventListener('click', loadPage);
-  loadPage();
+  moreBtn.addEventListener('click', () => load(false));
+
+// Read filters from URL; ignore invalid statuses and remove them via syncFilters().
+  state.status = VALID_STATUSES.includes(params.get('status')) ? params.get('status') : '';
+  state.unsent = params.get('unsent') === '1';
+  syncFilters();
+  load(true);
 })();

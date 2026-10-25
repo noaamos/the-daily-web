@@ -1,5 +1,5 @@
-/* Owner: member 1 - public site (home page, feed, article page, weather)
-   Colors, radii, shadows and fonts come from the tokens in main.css - nothing here hard-codes a palette. */
+/* Public site styles: home, feed, articles, and weather.
+   Uses shared design tokens from main.css. */
 
 /* ==== Front page (top of the home page, inside the main column) ==== */
 .front { margin-bottom: 2.5rem; display: flex; flex-direction: column; gap: 1.75rem; }
@@ -76,6 +76,20 @@
 
 /* The sidebar on the home page is taller than the screen, so it scrolls with the page instead of sticking */
 .sidebar-tall { position: static; }
+
+/* Article page, narrow screens: the news boxes come after the article and its comments, not above them
+   (main.css puts the sidebar boxes first because on the home page they belong to the front page) */
+@media (max-width: 900px) {
+  .layout > .sidebar.sidebar-after > :is(.trending, .front-latest) { order: 4; }
+}
+
+/* On narrow screens, weather, latest news, and most read appear only on the unfiltered home page.
+   Hidden on article pages (.sidebar-after) and during search/category filters (.is-filtered).
+   Desktop layout remains unchanged. */
+@media (max-width: 1024px), (hover: none) and (pointer: coarse) {
+  .layout > .sidebar.sidebar-after,
+  .layout > .sidebar.is-filtered { display: none; }
+}
 
 /* ---- Strip of picks: row of image cards (same look as the feed cards) ---- */
 .front-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--gap); }
@@ -203,7 +217,6 @@
 
 .comments { margin-top: 1.5rem; padding: 1.5rem 2rem; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
 .comments h2 { margin: 0 0 1rem; font-size: 1.4rem; }
-/* Owner: member 2 - comment list + form (filled by public/js/comments.js) */
 .comment-list { list-style: none; padding: 0; margin: 0; max-width: 70ch; }
 .comment { padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
 .comment-meta { margin: 0 0 0.25rem; font-size: 0.85rem; color: var(--muted); }
@@ -245,3 +258,7 @@
 .weather-details { list-style: none; padding: 0; margin: 0.75rem 0 0; display: grid; gap: 0.3rem; font-size: 0.9rem; }
 .weather-details li { display: flex; justify-content: space-between; }
 .weather-updated { margin: 0.75rem 0 0; font-size: 0.78rem; color: var(--muted); }
+
+/* A title or summary with a very long word or link (no spaces) wraps inside its box instead of stretching the page */
+.featured-title, .featured-summary, .medium-title, .strip-title, .list-title, .card-title, .card-summary,
+.article-title, .article-summary, .article-body p, .comment-author { overflow-wrap: anywhere; }

@@ -1,20 +1,10 @@
-/* Owner: member 4 - editor area (dashboard, review page, analytics) */
-
+/* Editor area styles: dashboard, review, and analytics. */
 .editor-page { max-width: 1320px; margin: 0 auto; padding: 1.25rem 1.5rem 1.5rem; }  /* same width as the header and the reporter pages */
 /* The shared heading style has a heavy underline; the editor pages use plain headings */
 .editor-page .section-title { border-bottom: 0; padding-bottom: 0; margin-bottom: 0.6rem; }
 .editor-intro { margin: -0.5rem 0 1.25rem; }
 
-/* ==== Status filter chips ==== */
-.status-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
-.chip {
-  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.9rem;
-  background: var(--surface); color: var(--text); border: 1px solid var(--border);
-  border-radius: 999px; font-size: 0.9rem; font-weight: 500; cursor: pointer;
-}
-.chip:hover { border-color: var(--ink); }
-.chip.active { background: var(--ink); color: var(--ink-text); border-color: var(--ink); }
-.chip-count { font-size: 0.78rem; opacity: 0.7; }
+/* Status filter chips are shared with the reporter area: see main.css */
 
 /* ==== Article list ==== */
 .article-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
@@ -212,7 +202,7 @@
   width: 100%; padding: 0.55rem 0.8rem; font: inherit; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
 }
 .edit-form .field-name, .return-box .field-name { margin-top: 0.4rem; }
-.edit-form input.invalid { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(228, 87, 46, 0.2); }
+.edit-form :is(input, textarea).invalid { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(228, 87, 46, 0.2); }
 .field-error[hidden] { display: none; }
 .field-error { color: var(--accent); font-size: 0.85rem; margin: 0; }
 
@@ -231,3 +221,7 @@
 @media (max-width: 860px) {
   .versions-two { grid-template-columns: 1fr; }
 }
+
+/* A title with a very long word or link (no spaces) wraps inside its box instead of stretching the page.
+   (without this the list rows, the review page and the analytics picker grow wider than the screen) */
+.row-title, .row-meta, .picker-title, .version-label, .review-title, .version-title, .editor-note { overflow-wrap: anywhere; }

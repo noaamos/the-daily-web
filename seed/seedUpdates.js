@@ -1,7 +1,5 @@
-// Owner: member 4
-// Demo data for the editor's review page: turns some pending articles into UPDATES of live articles.
-// Such an article keeps an older `published` version (what readers see) while its `draft` holds the new text
-// waiting for approval, so the editor can compare the two side by side.
+// Seed demo pending updates for published articles.
+// Keeps the live version visible while the new draft awaits editor review.
 const Article = require('../models/Article');
 const { STATUS } = require('../config/constants');
 

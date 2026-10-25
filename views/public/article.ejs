@@ -6,7 +6,6 @@
 %>
 <div class="layout">
   <main>
-    <!-- Owner: member 1. The full article is rendered here on the server (SEO). Comments load via Ajax. -->
     <article class="article-full" data-category="<%= article.category %>">
       <a href="/" class="back-link">→ חזרה לכל הכתבות</a>
 
@@ -37,7 +36,6 @@
 
     <section id="comments" class="comments" data-article-id="<%= article._id %>" data-is-editor="<%= user && user.role === 'editor' ? '1' : '0' %>">
       <h2>תגובות</h2>
-      <!-- Owner: member 2 - list loads with Ajax (comments.js), new comments are appended without reloading -->
       <ul id="comment-list" class="comment-list"></ul>
       <p id="comment-list-status" class="comment-status" role="status">טוען תגובות…</p>
 

@@ -1,5 +1,4 @@
-// Owner: member 1
-// Home page feed: infinite scroll + search / filter / sort, all without reloading the page.
+// Home page feed: infinite scroll, search, filtering, and sorting without page reloads.
 
 (function () {
   const form = document.getElementById('feed-controls');
@@ -14,7 +13,7 @@
     sort: document.getElementById('sort'),
   };
   const frontEl = document.getElementById('front');
-  const latestEl = document.getElementById('front-latest'); // sidebar "latest news", shown and hidden together with the front page
+  const sidebarEl = document.querySelector('.layout > .sidebar');
   const feedTitle = document.getElementById('feed-title');
   const navLinks = document.querySelectorAll('.category-nav a[data-category]');
 
@@ -25,8 +24,8 @@
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const dateFormat = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
 
-  // "לפני 5 דקות" / "לפני שעתיים" for the last day, a full date after that.
-  // (Intl.RelativeTimeFormat gives odd Hebrew like "לפני דקה (1)", so we write the phrases ourselves.)
+// Show relative Hebrew timestamps for the last 24h, then full dates.
+// Use custom phrases to avoid awkward Intl.RelativeTimeFormat output.
   function formatPublished(date) {
     const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
     const hours = Math.floor(minutes / 60);
@@ -72,8 +71,8 @@
     statusEl.classList.toggle('error', Boolean(isError));
   }
 
-  // eager: load the picture now (cards that are not in the page yet are otherwise lazy and would not start loading)
-  // instant: no slide-in of its own (a whole new result list fades in as one, see swap in loadNextPage)
+// eager: Load images immediately, even for cards not yet displayed.
+// instant: Skip individual animations; the entire result list fades in together.
   function renderCard(article, eager, instant) {
     // importNode (not cloneNode): elements of a <template> belong to an inert document, where pictures never start loading
     const card = document.importNode(template.content.firstElementChild, true);
@@ -113,12 +112,13 @@
     return Promise.race([Promise.all(loaded), new Promise((done) => setTimeout(done, ms))]);
   }
 
-  // The front page section (and the sidebar "latest news") is hidden while a search / filter is active.
-  // It changes together with the cards, so a new search switches the page in one step instead of in stages.
+// Hide the front page during search/filter; keep the sidebar visible.
+// Update its visibility with the cards for a seamless transition.
   function applyFrontVisibility() {
     if (state.hideFront === undefined) return; // nothing was searched yet: keep what the server rendered
     if (frontEl) frontEl.hidden = state.hideFront;
-    if (latestEl) latestEl.hidden = state.hideFront;
+    // phones and tablets also hide the weather / latest / most read boxes then (the rule is in public.css)
+    if (sidebarEl) sidebarEl.classList.toggle('is-filtered', state.hideFront);
   }
 
   async function loadNextPage() {
@@ -126,8 +126,8 @@
     state.loading = true;
     const controller = new AbortController();
     state.controller = controller;
-    // A new search / filter keeps the old cards on screen. "Loading" (status text + dimmed cards, see aria-busy in CSS)
-    // is shown only when the answer is slow, so a quick search just swaps the cards without any flicker.
+// Keep existing cards visible during search/filter.
+// Show loading feedback only for slow responses to avoid flicker.
     const replacing = state.page === 0 && feedEl.children.length > 0;
     let busyTimer;
     if (replacing) {
@@ -146,8 +146,7 @@
       if (!res.ok) throw new Error(data.error || 'שגיאה בטעינת הכתבות');
 
       const cards = data.articles.map((article, i) => renderCard(article, replacing && i < EAGER_CARDS, replacing));
-      // New search / filter: the old cards stay until the pictures of the first new cards are loaded,
-      // so the swap shows finished cards, not empty grey boxes that fill in one by one
+// Keep old cards visible until the first new images load, preventing empty placeholders during the swap.
       if (replacing) {
         await imagesReady(cards.slice(0, EAGER_CARDS), IMAGE_WAIT_MS);
         if (controller !== state.controller) return; // replaced by a newer search while the pictures loaded
@@ -210,12 +209,9 @@
     statusEl.append(' ', btn);
   }
 
-  // Keep the rest of the page in sync with the filters:
-  //  - the URL (/?category=sports&q=...) so Back / refresh / sharing a link keep the same results
-  //  - the "front page" section is hidden while a search or filter is active. Only the search box and the category bar
-  //    change it (updateFront). The dropdowns in "כל הכתבות" leave it as it is: the user is already down in the feed,
-  //    and hiding the section above would make the whole page jump
-  //  - the active category in the category bar
+// Sync filters with the URL (Back, refresh, sharing) and active category.
+// Hide the front page for search/category changes via updateFront.
+// Feed dropdowns don't affect it, preventing page jumps.
   function syncPage(updateFront) {
     const filters = currentFilters();
     const params = new URLSearchParams();
@@ -230,8 +226,8 @@
     navLinks.forEach((link) => link.classList.toggle('active', link.dataset.category === filters.category));
   }
 
-  // Start over from page 1 - called whenever search / filter / sort changes
-  // updateFront: false for the dropdowns in "כל הכתבות" (the front page section stays as it is)
+// Restart from page 1 on search, filter, or sort changes.
+// updateFront=false keeps the front page unchanged for feed dropdowns.
   function resetFeed(updateFront = true) {
     syncPage(updateFront);
     if (state.controller) state.controller.abort();

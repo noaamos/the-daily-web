@@ -1,8 +1,7 @@
-// Owner: member 4
-// Vanilla JS + fetch() only. No page reloads.
-// Impact Analytics: with no article picked, shows the views of all the articles together. Pick an article to see
-// its views over time (Chart.js), with a marker at every publish/update and a before/after comparison around
-// the selected publish.
+// Impact Analytics using vanilla JS and fetch(), without page reloads.
+// Shows total views or per-article trends with Chart.js.
+// Includes publish/update markers and before/after comparisons.
+
 (function () {
   const page = document.querySelector('.analytics-page');
   if (!page || typeof Chart === 'undefined') return;
@@ -61,9 +60,8 @@
     return series;
   }
 
-  // Average views per hour in the 24h before / after a publish.
-  // The hour that contains the publish is skipped (it is partly before, partly after) and so is the current,
-  // still unfinished, hour.
+// Average hourly views over 24h before and after publication.
+// Excludes the publication hour and the current incomplete hour.
   function compare(publishMs) {
     const pivot = hourStart(publishMs);
     const lastComplete = hourStart(Date.now()) - HOUR;
@@ -296,7 +294,7 @@
   async function search(q) {
     const mine = ++searchRequest;
     try {
-      const params = new URLSearchParams({ status: 'published' });
+      const params = new URLSearchParams({ live: '1' }); // every article with a published version, even if its update is in review
       if (q) params.set('q', q);
       const data = await getJson(`/editor/api/articles?${params}`);
       if (mine !== searchRequest) return;

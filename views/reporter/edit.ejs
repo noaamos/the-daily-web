@@ -1,7 +1,6 @@
 <%- include('../partials/head', { styles: ['/css/reporter.css'] }) %>
 <%- include('../partials/header') %>
 <main class="reporter-page edit-page" data-article-id="<%= article._id %>" data-status="<%= article.status %>" data-saved-at="<%= article.draftSavedAt ? article.draftSavedAt.toISOString() : '' %>">
-  <!-- Owner: member 3 -->
   <p class="back-link"><a href="/reporter">חזרה לכתבות שלי</a></p>
   <div class="page-head">
     <h1 class="section-title">עריכת כתבה</h1>
@@ -55,7 +54,13 @@
 
       <label for="f-image">קישור לתמונה</label>
       <input id="f-image" name="imageUrl" type="url" maxlength="500" dir="ltr" value="<%= article.draft.imageUrl %>">
-      <p class="field-hint" id="image-hint" hidden>הקישור יישמר רק אם הוא מתחיל ב-<bdi dir="ltr">http://</bdi> או <bdi dir="ltr">https://</bdi></p>
+      <p class="field-hint is-error" id="image-hint" hidden>הקישור חייב להיות כתובת תקינה שמתחילה ב-<bdi dir="ltr">http://</bdi> או <bdi dir="ltr">https://</bdi> (או להישאר ריק). עד שיתוקן הוא לא יישמר ואי אפשר להגיש לאישור.</p>
+      <%# Filled by image-preview.js: the picture itself, or a message when the link does not lead to a picture %>
+      <div class="image-preview" id="image-preview" role="group" aria-labelledby="image-preview-title" hidden>
+        <p class="preview-title" id="image-preview-title">תצוגה מקדימה</p>
+        <img id="image-preview-img" alt="תצוגה מקדימה של התמונה הראשית" width="800" height="450" hidden>
+        <p class="field-hint" id="image-preview-status" role="status" hidden></p>
+      </div>
     </fieldset>
 
     <% if (canEdit) { %>
@@ -64,9 +69,12 @@
         <button type="submit" class="btn-outline" id="save-btn">שמור עכשיו</button>
         <% if (article.status === 'published') { %><button type="button" class="btn-outline btn-danger" id="discard-btn">ביטול שינויים</button><% } %>
         <span id="save-status" class="save-status" role="status" aria-live="polite"></span>
+        <span id="submit-block-reason" class="save-status error" role="status" hidden>אי אפשר להגיש: קישור התמונה לא תקין. תקנו אותו או השאירו ריק.</span>
       </div>
     <% } %>
   </form>
 </main>
+<script src="/js/image-link.js" defer></script>
 <% if (canEdit) { %><script src="/js/reporter-edit.js" defer></script><% } %>
+<script src="/js/image-preview.js" defer></script>
 <%- include('../partials/footer') %>

@@ -1,7 +1,5 @@
-// Owner: member 4
-// Views are NOT stored one document per view (thousands of readers would flood the DB).
-// Instead each document is a counter for one article in one hour ("bucket"), updated with $inc + upsert.
-// The chart then reads a few dozen small documents per article.
+// Store hourly view counters per article using $inc and upsert.
+// Reduces database load compared to storing individual views.
 const mongoose = require('mongoose');
 
 const viewStatSchema = new mongoose.Schema({

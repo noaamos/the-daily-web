@@ -1,7 +1,5 @@
-// Owner: member 4
-// Vanilla JS + fetch() only. No page reloads.
-// Editor dashboard: status filter and the article list with "load more".
-// Approving / returning happens on the review page (/editor/articles/:id), where the editor sees the content first.
+// Editor dashboard: article list with status filters and load more.
+// Approvals and returns are handled on the article review page.
 (function () {
   const rowsEl = document.getElementById('article-rows');
   const statusEl = document.getElementById('list-status');
@@ -84,7 +82,7 @@
     const main = el('a', { class: isPending ? 'btn-accent' : 'btn-outline', href: `/editor/articles/${a.id}`, text: isPending ? 'בדיקה' : 'צפייה' });
 
     const menu = el('div', { class: 'more-menu' });
-    if (a.status === 'published') menu.append(el('a', { href: `/editor/analytics?article=${a.id}`, text: 'סטטיסטיקות' }));
+    if (a.hasPublished) menu.append(el('a', { href: `/editor/analytics?article=${a.id}`, text: 'סטטיסטיקות' }));
     const del = el('button', { type: 'button', class: 'danger', text: 'מחיקה' });
     del.addEventListener('click', async () => {
       if (!confirm(`למחוק את "${a.title}"? אי אפשר לבטל.`)) return;

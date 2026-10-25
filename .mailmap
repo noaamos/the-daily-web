@@ -1,0 +1,8 @@
+# Maps the different names / e-mail addresses that one person committed with to a single identity,
+# so that `git shortlog -sne` and `git log` show each team member once. (Git reads this file by itself.)
+# Format: Proper Name <proper@email> Commit Name <commit@email>
+
+AnnaBananaRo <221850126+AnnaBananaRo@users.noreply.github.com> Anna Ro <Anna@firm-insights.com>
+ShaharAk1 <7824zj7npd@privaterelay.appleid.com> shaharAk <shahar.akiva060603@gmail.com>
+ShaharAk1 <7824zj7npd@privaterelay.appleid.com> Shahar <7824zj7npd@privaterelay.appleid.com>
+Eden kaushansky <edenkaushansky@gmail.com> edenkaushansky-afk <edenkaushansky@gmail.com>

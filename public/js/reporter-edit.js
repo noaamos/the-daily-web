@@ -1,13 +1,12 @@
-// Owner: member 3
-// Vanilla JS + fetch() only. No page reloads.
-// Edit page autosave: the form is sent to the server a moment after the reporter stops typing.
-// Rules: only one request at a time, the newest version always wins, and nothing typed is ever thrown away.
+// Reporter edit page: autosaves changes via fetch() after typing pauses.
+// Processes one request at a time, preserving all edits and the latest version.
 (function () {
   const page = document.querySelector('.edit-page');
   const form = document.getElementById('edit-form');
   const saveBtn = document.getElementById('save-btn');
   const statusEl = document.getElementById('save-status');
   const imageHintEl = document.getElementById('image-hint');
+  const blockReasonEl = document.getElementById('submit-block-reason'); // next to the buttons: why submitting is not possible
   const backLink = document.querySelector('.back-link a');
   const submitBtn = document.getElementById('submit-btn');
   const discardBtn = document.getElementById('discard-btn'); // only on a published article
@@ -18,7 +17,8 @@
   const MAX_WAIT_MS = 10000;                   // while typing goes on, save at least this often
   const RETRY_MS = [2000, 5000, 10000];        // wait before retrying a failed save (the last one repeats)
   const KEEPALIVE_MAX_BYTES = 60000;           // browsers refuse "keepalive" requests above ~64KB
-  const IMAGE_OK = /^https?:\/\//i;
+
+  const isImageLink = window.isImageLink; // the rule is shared, see image-link.js
 
   const url = `/reporter/api/articles/${page.dataset.articleId}/draft`;
   const f = form.elements;
@@ -35,6 +35,7 @@
     retries: 0,
     savedSnapshot: snapshot(),            // what the server has (the page was filled from the server)
     lastValidImage: f.imageUrl.value.trim(),
+    lastSavedAt: page.dataset.savedAt || null, // when the server last saved this draft (null: never saved yet)
   };
   let debounceTimer = null;
   let maxTimer = null;
@@ -63,17 +64,30 @@
     debounceTimer = maxTimer = retryTimer = null;
   }
 
-  // A half-typed image link ("htt") would make the server reject the whole draft, title and text included.
-  // So an invalid link is not sent: the last valid one is kept, and a hint is shown next to the field.
+// Autosave keeps the last valid image URL to prevent draft rejection.
+// Block submission while the URL is invalid to avoid submitting an outdated image.
+  const imageLinkIsBad = () => f.imageUrl.value.trim() !== '' && !isImageLink(f.imageUrl.value.trim());
+
+  // The submit button is off while a submit/discard is running, and while the image link is invalid
+  function refreshSubmitButton() {
+    if (!submitBtn) return;
+    submitBtn.disabled = submitting || imageLinkIsBad();
+    submitBtn.title = imageLinkIsBad() ? 'אי אפשר להגיש כל עוד קישור התמונה לא תקין' : '';
+  }
+
+  // Shows or hides everything that belongs to an invalid image link: the hint, the red field, the reason next to the buttons
   function updateImageHint() {
-    const value = f.imageUrl.value.trim();
-    imageHintEl.hidden = !value || IMAGE_OK.test(value);
+    const bad = imageLinkIsBad();
+    imageHintEl.hidden = !bad;
+    f.imageUrl.setAttribute('aria-invalid', String(bad));
+    if (blockReasonEl) blockReasonEl.hidden = !bad;
+    refreshSubmitButton();
   }
 
   function payloadFor(snap) {
     const payload = JSON.parse(snap);
     const image = payload.imageUrl.trim();
-    payload.imageUrl = !image || IMAGE_OK.test(image) ? image : state.lastValidImage;
+    payload.imageUrl = !image || isImageLink(image) ? image : state.lastValidImage;
     return payload;
   }
 
@@ -124,6 +138,7 @@
         state.savedSnapshot = sent;
         state.lastValidImage = payload.imageUrl;
         state.retries = 0;
+        state.lastSavedAt = data.savedAt;
         lastSavedText = `נשמר אוטומטית ב-${timeText(data.savedAt)}`;
         showStatus(lastSavedText);
       }, handleFailure)
@@ -177,6 +192,11 @@
   // Save first, then submit: the server must hold the newest text before the article goes to the editor
   async function submitForApproval() {
     if (submitting) return;
+    if (imageLinkIsBad()) { // the button is off in this case; this is the second guard
+      updateImageHint();
+      f.imageUrl.focus();
+      return;
+    }
     const isUpdate = page.dataset.status === 'published'; // an update of an article that is live
     const question = isUpdate
       ? 'להגיש את העדכון לאישור העורך?\nהציבור ימשיך לראות את הגרסה הקודמת עד שהעורך יאשר. אחרי ההגשה אי אפשר לערוך עד שהעורך יחזיר או יאשר.'
@@ -199,7 +219,7 @@
     } catch (err) {
       showStatus(err.message, true);
       submitting = false;
-      submitBtn.disabled = false;
+      refreshSubmitButton();
       saveBtn.disabled = false;
       if (discardBtn) discardBtn.disabled = false;
       fieldset.disabled = false;
@@ -226,7 +246,7 @@
       showStatus(err.message, true);
       state.stopped = false;
       submitting = false;
-      submitBtn.disabled = false;
+      refreshSubmitButton();
       saveBtn.disabled = false;
       discardBtn.disabled = false;
       fieldset.disabled = false;
@@ -239,12 +259,25 @@
     schedule();
   });
 
+// If autosave already completed, briefly show a saved confirmation before restoring the normal status.
+  const CONFIRM_MS = 2500;
+  function confirmSaved() {
+    // An invalid image link is never sent to the server, so "everything is saved" would not be true
+    const bad = imageLinkIsBad();
+    const confirmation = bad
+      ? 'נשמר, אבל קישור התמונה לא תקין ולא נשמר'
+      : `הכול שמור ✓${state.lastSavedAt ? ` (${timeText(state.lastSavedAt)})` : ''}`;
+    showStatus(confirmation, bad);
+    setTimeout(() => { if (statusEl.textContent === confirmation) showStatus(lastSavedText); }, CONFIRM_MS);
+  }
+
   // The "save now" button (and Enter in the title field): an extra, the autosave works without it
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     state.stopped = false; // a manual click may try again after an error (e.g. after logging in again)
     state.retries = 0;
-    flush();
+    if (!isDirty() && !state.saving) confirmSaved();
+    else flush();
   });
 
   if (submitBtn) submitBtn.addEventListener('click', submitForApproval);

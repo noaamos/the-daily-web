@@ -1,4 +1,3 @@
-// Owner: member 1
 // Which articles a device (anonymous browser) has already opened - powers the "viewed / not viewed" filter.
 const mongoose = require('mongoose');
 

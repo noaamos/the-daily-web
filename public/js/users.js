@@ -1,7 +1,5 @@
-// Owner: member 2
-// Vanilla JS + fetch() only. No page reloads.
-// Editor user management (/editor/users): list + search, create, edit and delete users through /api/users.
-// Data from the server is always shown with textContent (never as HTML).
+// Editor user management: search, create, edit, and delete users via /api/users.
+// Uses fetch() without page reloads and textContent to prevent HTML injection.
 (function () {
   const page = document.querySelector('.users-page');
   if (!page) return;

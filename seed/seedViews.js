@@ -1,7 +1,5 @@
-// Owner: member 4
-// Demo data for the Impact Analytics chart: hourly view counters for every published article,
-// plus a few extra editor approvals (publishHistory) on some of them so the chart shows update markers.
-// Called from seed.js with the inserted articles. viewCount is set to the sum of the generated buckets.
+// Seed hourly view counters and publishHistory update markers for published articles.
+// Called by seed.js; viewCount is the sum of generated hourly buckets.
 const ViewStat = require('../models/ViewStat');
 const Article = require('../models/Article');
 

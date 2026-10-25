@@ -1,4 +1,3 @@
-// Owner: member 2 - user management. Every route here is editor-only (router.use(requireRole('editor')) in routes/users.js).
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
@@ -6,6 +5,7 @@ const Article = require('../models/Article');
 const logger = require('../config/logger');
 const { ROLES } = require('../config/constants');
 const { httpError } = require('../middleware/errorHandler');
+const { parseSearchText, escapeRegex } = require('../services/queryParams');
 
 const BCRYPT_ROUNDS = 10;
 const USERNAME_RE = /^[a-z0-9._-]{3,30}$/; // checked after lowercasing
@@ -15,11 +15,6 @@ const DISPLAY_NAME_MAX = 50;
 // Never send passwordHash to the browser
 function toPublic(u) {
   return { _id: u._id, username: u.username, displayName: u.displayName, role: u.role, createdAt: u.createdAt };
-}
-
-// Escape regex special characters so a search like "a.b" or "(" is treated as plain text
-function escapeRegex(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // Validators: each returns the clean value or throws a 400 error with a Hebrew message
@@ -42,6 +37,15 @@ function checkRole(value) {
   return value;
 }
 
+// Logs out a user from all devices by deleting their connect-mongo sessions.
+// Sessions store the user ID as JSON; keepSessionId excludes a specific session.
+async function endSessionsOf(userId, keepSessionId) {
+  const filter = { session: { $regex: `"userId":"${userId}"` } };
+  if (keepSessionId) filter._id = { $ne: keepSessionId };
+  const { deletedCount } = await mongoose.connection.collection('sessions').deleteMany(filter);
+  return deletedCount;
+}
+
 async function findUserOr404(id) {
   if (!mongoose.isValidObjectId(id)) throw httpError(400, 'מזהה משתמש לא תקין');
   const user = await User.findById(id);
@@ -52,7 +56,7 @@ async function findUserOr404(id) {
 // GET /api/users?q= -> { users: [...] }  search by username or display name
 exports.list = async (req, res, next) => {
   try {
-    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const q = parseSearchText(req.query.q, 100);
     const filter = {};
     if (q) {
       const re = new RegExp(escapeRegex(q), 'i');
@@ -102,6 +106,11 @@ exports.update = async (req, res, next) => {
     }
 
     await user.save(); // duplicate username -> 11000 -> 409 in errorHandler
+    if (req.body.password !== undefined) {
+// Invalidate old-password sessions, except the editor's current session when changing their own password.
+      const ended = await endSessionsOf(user._id, isSelf ? req.sessionID : null);
+      logger.info(`Password of ${user.username} changed by ${req.user.username}: ${ended} other session(s) ended`);
+    }
     logger.info(`User updated: ${user.username} by ${req.user.username}`);
     res.json(toPublic(user));
   } catch (err) {

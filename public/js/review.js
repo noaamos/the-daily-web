@@ -1,5 +1,4 @@
-// Owner: member 4
-// Vanilla JS + fetch() only. Review page actions: edit, approve, return with a note, delete.
+// Editor review page: edit, approve, return with a note, and delete via fetch().
 (function () {
   const page = document.querySelector('.review-page');
   if (!page) return;
@@ -29,8 +28,9 @@
     return data;
   }
 
-  // Run an action with its button disabled; on success show a message and reload (the page is rendered on the server)
-  async function run(button, request, successMessage, after) {
+// Disable the button during the action; on success, show a message and reload.
+// onError: optional callback for displaying server errors.
+  async function run(button, request, successMessage, after, onError) {
     button.disabled = true;
     try {
       await request();
@@ -38,6 +38,7 @@
       setTimeout(after || (() => location.reload()), 700);
     } catch (err) {
       toast(err.message, true);
+      if (onError) onError(err);
       button.disabled = false;
     }
   }
@@ -82,9 +83,20 @@
     versions.hidden = true;
     $('f-title').focus();
   });
-  $('f-title').addEventListener('input', () => {
-    $('f-title').classList.remove('invalid');
-    showError($('title-error'), '');
+  // The three fields the server insists on (title, text, a valid image link): each has a red line under it
+  const fieldErrors = { 'f-title': 'title-error', 'f-body': 'body-error', 'f-image': 'image-error' };
+  function clearFieldError(fieldId) {
+    $(fieldId).classList.remove('invalid');
+    $(fieldId).removeAttribute('aria-invalid');
+    $(fieldErrors[fieldId]).hidden = true; // the message itself is written in the page (views/editor/review.ejs)
+  }
+  function markInvalid(fieldId) {
+    $(fieldId).classList.add('invalid');
+    $(fieldId).setAttribute('aria-invalid', 'true');
+    $(fieldErrors[fieldId]).hidden = false;
+  }
+  Object.keys(fieldErrors).forEach((fieldId) => {
+    $(fieldId).addEventListener('input', () => { clearFieldError(fieldId); showError($('edit-error'), ''); });
   });
   $('edit-cancel').addEventListener('click', () => {
     form.hidden = true;
@@ -99,17 +111,21 @@
       body: form.body.value,
       imageUrl: form.imageUrl.value,
     };
-    if (!payload.title.trim()) {
-      // show the problem right at the field (the form is long, a message by the buttons is easy to miss)
-      $('f-title').classList.add('invalid');
-      showError($('title-error'), 'חובה למלא כותרת - אי אפשר לשמור כתבה בלי כותרת');
-      $('f-title').scrollIntoView({ block: 'center', behavior: 'smooth' });
-      $('f-title').focus();
+    showError($('edit-error'), '');
+    // The same checks as the server (the form is long, so the message is shown right at the field)
+    const image = payload.imageUrl.trim();
+    const problems = [];
+    if (!payload.title.trim()) problems.push('f-title');
+    if (!payload.body.trim()) problems.push('f-body');
+    if (image && !window.isImageLink(image)) problems.push('f-image');
+    Object.keys(fieldErrors).forEach(clearFieldError);
+    if (problems.length) {
+      problems.forEach(markInvalid);
+      $(problems[0]).scrollIntoView({ block: 'center', behavior: 'smooth' });
+      $(problems[0]).focus();
       return;
     }
-    showError($('title-error'), '');
-    $('f-title').classList.remove('invalid');
-    showError($('edit-error'), '');
-    run(form.querySelector('[type="submit"]'), () => api('PUT', `${base}/draft`, payload), 'השינויים נשמרו');
+    run(form.querySelector('[type="submit"]'), () => api('PUT', `${base}/draft`, payload), 'השינויים נשמרו', undefined,
+      (err) => showError($('edit-error'), err.message));
   });
 })();

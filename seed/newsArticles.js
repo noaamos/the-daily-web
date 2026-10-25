@@ -1,8 +1,7 @@
-// Owner: member 2
-// Demo content for seed.js: short Hebrew summaries of real news stories from October 2026 (a few from earlier in 2026).
-// `summary` is a one-line lead, `body` is the 1-3 sentence summary. `source` / `date` are for verification only and are
-// not stored in the database (`date` is only as precise as the source made it: YYYY-MM when no day was given). seed.js cycles through this list to fill all of its articles.
-// To add a story: keep to what the source actually reports, and use one of the categories in config/constants.js.
+// Demo news for seed.js: Hebrew summaries of sourced stories, mostly from October 2026.
+// summary: short lead; body: 1–3 sentences.
+// source/date: verification only, not stored in DB (dates may be YYYY-MM).
+// seed.js reuses entries; new stories must match their sources and use valid categories.
 
 const NEWS = [
   // ---- politics ----

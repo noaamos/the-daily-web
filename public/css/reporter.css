@@ -1,11 +1,16 @@
-/* Owner: member 3 - reporter area
-   Uses the shared design system from main.css: white cards (shadow tokens), pill buttons, shared form fields,
-   shared status badges and category chips. Only reporter-specific layout lives here. */
+/* Reporter-specific styles and layout, using shared design tokens and components from main.css. */
 .reporter-page { max-width: 1320px; margin: 0 auto; padding: 1.25rem 1.5rem 1.5rem; }
 .reporter-page .page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
 .reporter-page .section-title { margin: 0; }
 /* edit page: the status badge sits next to the title */
 .reporter-page.edit-page .page-head { justify-content: flex-start; }
+
+/* ==== Filter bar: status chips (shared, main.css) and the "unsent changes" checkbox next to them ==== */
+.reporter-page .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.25rem; margin-bottom: 1.25rem; }
+.reporter-page .filter-bar .status-chips { margin-bottom: 0; }
+.reporter-page .check-filter { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.9rem; cursor: pointer; }
+.reporter-page .check-filter input { margin: 0; width: 1rem; height: 1rem; accent-color: var(--ink); cursor: inherit; }
+.reporter-page .check-filter.is-disabled { opacity: 0.5; cursor: not-allowed; } /* unsent changes only exist on published articles */
 
 /* ==== New article form ==== */
 .reporter-page .new-article-form {
@@ -51,6 +56,20 @@
 .reporter-page .notice.info a { margin-inline-start: 0.5rem; font-weight: 600; }
 .reporter-page .field-hint { margin: 0; font-size: 0.85rem; color: var(--warn); }
 .reporter-page .field-hint[hidden] { display: none; }
+.reporter-page .field-hint.is-error { color: var(--danger); }
+/* picture behind the image-link field (image-preview.js) */
+.reporter-page .image-preview { display: grid; gap: 0.4rem; margin-top: 0.2rem; }
+.reporter-page .image-preview .field-hint:not(.is-error) { color: var(--muted); } /* "loading..." is not a warning */
+.reporter-page .image-preview[hidden] { display: none; }
+.reporter-page .image-preview .preview-title { margin: 0; font-weight: 600; font-size: 0.9rem; }
+/* an image link that is not a valid address: red field (the red hint and the reason next to the buttons are in the page) */
+.reporter-page .edit-form input[aria-invalid="true"] { border-color: var(--danger); }
+.reporter-page .form-actions .save-status[hidden] { display: none; }
+.reporter-page .image-preview img {
+  display: block; width: 100%; max-width: 420px; height: auto; aspect-ratio: 16 / 9; object-fit: cover;
+  background: var(--border); border-radius: var(--radius);
+}
+.reporter-page .image-preview img[hidden] { display: none; }
 .reporter-page .save-status { font-size: 0.9rem; color: var(--muted); }
 .reporter-page .save-status.error { color: var(--danger); }
 

@@ -1,20 +1,16 @@
-// Owner: member 3 (used by member 4 too)
-// The ONLY place where an article's status is changed. Controllers call transition(), never set status directly.
+// Centralize all article status changes in transition(); controllers never modify status directly.
 const { STATUS, ROLES } = require('../config/constants');
 
-// Allowed transitions, exactly as defined in the requirements. Anything else is rejected.
-// who: which role may perform it.
+// Defines allowed status transitions and the roles permitted to perform them.
+// Rejects all other transitions.
 const TRANSITIONS = {
   [`${STATUS.DRAFT}->${STATUS.PENDING}`]:     { who: ROLES.REPORTER },
   [`${STATUS.RETURNED}->${STATUS.PENDING}`]:  { who: ROLES.REPORTER },
   [`${STATUS.PENDING}->${STATUS.PUBLISHED}`]: { who: ROLES.EDITOR },
   [`${STATUS.PENDING}->${STATUS.RETURNED}`]:  { who: ROLES.EDITOR },
-  // Editing an already-published article. The requirements say the new version "goes through the same approval
-  // process" while the last approved version stays visible, and an editor only acts on "pending" articles
-  // (pending -> published / returned). So submitting an update moves published -> pending. This is the one transition
-  // that is not listed explicitly: it is how we understood that process. The status stays "published" while the
-  // reporter works on `draft`, and the public keeps seeing `published` the whole time; the editor approves or returns
-  // the update like any other pending article (the draft is copied to `published` on approval).
+// Published articles remain visible while draft updates await review.
+// Submitting an update moves published -> pending (inferred from requirements).
+// The editor can approve the draft as the new published version or return it for changes.
   [`${STATUS.PUBLISHED}->${STATUS.PENDING}`]: { who: ROLES.REPORTER },
 };
 
@@ -55,6 +51,15 @@ async function transition(article, to, user, opts = {}) {
   }
 
   if (to === STATUS.PUBLISHED) {
+// Validate draft content before publishing, regardless of who edited it.
+    const missing = [];
+    if (!(article.draft.title || '').trim()) missing.push('כותרת');
+    if (!(article.draft.body || '').trim()) missing.push('תוכן');
+    if (missing.length) {
+      const err = new Error(`אי אפשר לפרסם כתבה בלי ${missing.join(' ובלי ')}`);
+      err.status = 400;
+      throw err;
+    }
     // The draft becomes the version the public sees; the publish time is recorded for the Impact Analytics markers
     const now = new Date();
     article.published = article.draft.toObject();
@@ -64,17 +69,16 @@ async function transition(article, to, user, opts = {}) {
     article.editorNote = '';
   }
 
-  // The status is checked again inside the save itself (same idea as the conditional update of autosave/discard):
-  // if another request moved the article after we loaded it (e.g. two submits at the same moment, or "cancel changes"
-  // and "submit"), nothing is written and the caller gets a 409 instead of silently overwriting the newer status.
+// Recheck status during save to prevent concurrent updates from overwriting changes.
+// Return 409 if the status changed since the article was loaded.
   const from = article.status;
   article.$where = { status: from };
   article.status = to;
   try {
     return await article.save();
   } catch (err) {
-    // DocumentNotFoundError: the status filter did not match. VersionError: the same, reported by mongoose
-    // when the save also modifies an array (publishHistory) and so adds the version check.
+// DocumentNotFoundError: status filter no longer matches.
+// VersionError: Mongoose detects a version conflict when updating publishHistory.
     if (err.name === 'DocumentNotFoundError' || err.name === 'VersionError') {
       const conflict = new Error('מצב הכתבה השתנה, אי אפשר לבצע את הפעולה');
       conflict.status = 409;

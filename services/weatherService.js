@@ -1,7 +1,6 @@
-// Owner: member 1
-// The server fetches the weather at most once every 15 minutes and keeps it in memory.
-// Thousands of readers -> still only ~4 calls per hour to the external API.
-const { WEATHER_CACHE_MS } = require('../config/constants');
+// Cache weather in memory for WEATHER_CACHE_MS (5 min), limiting API calls to ~12/hour.
+// Never return data older than WEATHER_MAX_AGE_MS (15 min), even if the API is unavailable.
+const { WEATHER_CACHE_MS, WEATHER_MAX_AGE_MS } = require('../config/constants');
 const logger = require('../config/logger');
 
 const API_URL = 'https://api.openweathermap.org/data/2.5/weather';
@@ -38,17 +37,18 @@ async function fetchFromApi() {
 }
 
 function withMeta() {
-  if (!cache.data) return null;
+  const age = Date.now() - cache.fetchedAt;
+  if (!cache.data || age >= WEATHER_MAX_AGE_MS) return null; // too old to show: better no weather than old weather
   return {
     ...cache.data,
     updatedAt: new Date(cache.fetchedAt).toISOString(),
-    stale: Date.now() - cache.fetchedAt >= WEATHER_CACHE_MS, // true = old data, because the service failed
+    expiresInMs: WEATHER_MAX_AGE_MS - age, // the page hides the data after this long, without trusting its own clock
   };
 }
 
 /**
- * Returns { ...weather, updatedAt, stale } or null if we have never managed to get the weather.
- * Never throws - the page must work even when the weather service is down.
+ * Returns fresh weather data with updatedAt and expiresInMs, or null if older than 15 minutes.
+ * Never throws, even when the weather service is unavailable.
  */
 async function getWeather() {
   const now = Date.now();
@@ -62,8 +62,7 @@ async function getWeather() {
     return withMeta();
   }
 
-  // If 1000 readers arrive right when the cache expires, only the first one sends a request;
-  // the others wait for that same request instead of sending 999 more.
+  // Share one in-flight request when the cache expires to prevent duplicate API calls.
   if (!inFlight) {
     inFlight = fetchFromApi()
       .then((data) => {
