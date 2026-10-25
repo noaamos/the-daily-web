@@ -3,6 +3,7 @@
 const mongoose = require('mongoose');
 const Article = require('../models/Article');
 const { transition } = require('../services/articleService');
+const { isValidImageLink } = require('../services/imageLink');
 const { httpError } = require('../middleware/errorHandler');
 const logger = require('../config/logger');
 const { STATUS, CATEGORIES, STATUS_LABELS_HE, CATEGORY_LABELS_HE, PAGE_SIZE } = require('../config/constants');
@@ -83,7 +84,7 @@ function cleanDraft(input) {
     if (text.length > max) throw httpError(400, `השדה "${label}" ארוך מדי (עד ${max} תווים)`);
     out[key] = text;
   });
-  if (out.imageUrl && !/^https?:\/\//i.test(out.imageUrl)) throw httpError(400, 'קישור התמונה חייב להתחיל ב-http או https');
+  if (out.imageUrl && !isValidImageLink(out.imageUrl)) throw httpError(400, 'קישור התמונה חייב להיות כתובת תקינה שמתחילה ב-http או https');
   if (input.category !== undefined) {
     if (typeof input.category !== 'string' || !CATEGORIES.includes(input.category)) throw httpError(400, 'קטגוריה לא תקינה');
     out.category = input.category;

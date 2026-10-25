@@ -6,6 +6,7 @@ const ViewStat = require('../models/ViewStat');
 const DeviceView = require('../models/DeviceView');
 const { getArticleStats, getOverallStats } = require('../services/viewService');
 const { transition } = require('../services/articleService');
+const { isValidImageLink } = require('../services/imageLink');
 const { httpError } = require('../middleware/errorHandler');
 const logger = require('../config/logger');
 const { STATUS, STATUS_LABELS_HE, CATEGORY_LABELS_HE, PAGE_SIZE } = require('../config/constants');
@@ -46,7 +47,7 @@ function cleanContent(input) {
     out[key] = text;
   });
   if (!out.title) throw httpError(400, 'חובה למלא כותרת');
-  if (out.imageUrl && !/^https?:\/\//i.test(out.imageUrl)) throw httpError(400, 'קישור התמונה חייב להתחיל ב-http או https');
+  if (out.imageUrl && !isValidImageLink(out.imageUrl)) throw httpError(400, 'קישור התמונה חייב להיות כתובת תקינה שמתחילה ב-http או https');
   return out;
 }
 

@@ -213,6 +213,9 @@ async function reporterTests() {
     'missing fields': undefined, 'title is a number': { title: 5 }, 'title is an object': { title: { $ne: 1 } },
     'title 201 characters': { title: L('a', 201) }, 'summary 501': { summary: L('a', 501) }, 'body 50001': { body: L('a', 50001) },
     'image 501': { imageUrl: 'http://x.com/' + L('a', 495) }, 'javascript: link': { imageUrl: 'javascript:alert(1)' }, 'ftp link': { imageUrl: 'ftp://x.com/a.png' },
+    'relative link': { imageUrl: '/img/a.png' }, 'data: link': { imageUrl: 'data:text/html,x' },
+    'bare http://': { imageUrl: 'http://' }, 'bare https://': { imageUrl: 'https://' }, 'no host': { imageUrl: 'http:///' },
+    'space in the host': { imageUrl: 'http://exa mple.com/a.png' }, 'host is only a dot': { imageUrl: 'http://.' }, 'host is only a dash': { imageUrl: 'https://-' },
     'unknown category': { category: 'xyz' }, 'category is an object': { category: { $ne: null } },
   };
   for (const [name, fields] of Object.entries(rejected)) {
@@ -220,6 +223,10 @@ async function reporterTests() {
     check(`rejected: ${name} -> 400`, r.status === 400, r.status);
   }
   check('nothing was changed by all the rejected saves', (await snap(D)) === baseSnap);
+  for (const link of ['https://example.com/a.png?x=1#y', 'HTTPS://Example.COM/A.png', 'http://localhost:3000/a.png', 'http://127.0.0.1/a.png']) {
+    check(`a real address is accepted: ${link}`, (await save(R1, D, { ...good, imageUrl: link })).status === 200 && (await db(D)).draft.imageUrl === link);
+  }
+  await save(R1, D, good); // back to the saved draft the next checks expect
   const forgedSave = await save(R1, D, { ...good, status: 'published', author: String(u2._id), published: { title: 'hack' }, editorNote: 'x', viewCount: 999 });
   const fsnap = await db(D);
   check('forged fields in a save are ignored', forgedSave.status === 200 && fsnap.status === 'draft' && fsnap.published === null && fsnap.editorNote === '' && String(fsnap.author) === String(u1._id) && fsnap.viewCount === 0);
@@ -744,6 +751,8 @@ async function reporterTests() {
     ['title too long', { ...good, title: 'a'.repeat(201) }], ['summary too long', { ...good, summary: 'a'.repeat(501) }],
     ['body too long', { ...good, body: 'a'.repeat(50001) }], ['javascript: image', { ...good, imageUrl: 'javascript:alert(1)' }],
     ['relative image', { ...good, imageUrl: '/etc/passwd' }], ['data: image', { ...good, imageUrl: 'data:text/html,x' }],
+    ['bare http://', { ...good, imageUrl: 'http://' }], ['bare https://', { ...good, imageUrl: 'https://' }],
+    ['image with a space in the host', { ...good, imageUrl: 'http://exa mple.com/a.png' }], ['image host is only a dot', { ...good, imageUrl: 'http://.' }],
   ];
   for (const [label, b] of bodies) check(`edit rejects: ${label}`, (await call('PUT', api('draft')(pa._id), { cookie: E, json: b })).status === 400);
   check('edit rejects broken JSON', (await call('PUT', api('draft')(pa._id), { cookie: E, raw: '{bad' })).status === 400);
