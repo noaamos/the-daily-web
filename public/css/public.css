@@ -251,3 +251,7 @@
 .weather-details { list-style: none; padding: 0; margin: 0.75rem 0 0; display: grid; gap: 0.3rem; font-size: 0.9rem; }
 .weather-details li { display: flex; justify-content: space-between; }
 .weather-updated { margin: 0.75rem 0 0; font-size: 0.78rem; color: var(--muted); }
+
+/* A title or summary with a very long word or link (no spaces) wraps inside its box instead of stretching the page */
+.featured-title, .featured-summary, .medium-title, .strip-title, .list-title, .card-title, .card-summary,
+.article-title, .article-summary, .article-body p, .comment-author { overflow-wrap: anywhere; }

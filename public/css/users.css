@@ -16,8 +16,8 @@
 .user-form .action-row { margin-top: 0.6rem; }
 
 .users-page .row-title { margin: 0; }
-.user-name { font-weight: 600; }
-.user-username { direction: ltr; unicode-bidi: isolate; }
+.user-name { font-weight: 600; overflow-wrap: anywhere; }
+.user-username { direction: ltr; unicode-bidi: isolate; overflow-wrap: anywhere; }
 .user-self { font-size: 0.85rem; color: var(--muted); font-weight: 400; }
 .row-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
 

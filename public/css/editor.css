@@ -222,3 +222,7 @@
 @media (max-width: 860px) {
   .versions-two { grid-template-columns: 1fr; }
 }
+
+/* A title with a very long word or link (no spaces) wraps inside its box instead of stretching the page.
+   (without this the list rows, the review page and the analytics picker grow wider than the screen) */
+.row-title, .row-meta, .picker-title, .version-label, .review-title, .version-title, .editor-note { overflow-wrap: anywhere; }
