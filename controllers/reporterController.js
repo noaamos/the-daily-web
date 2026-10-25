@@ -241,11 +241,13 @@ exports.submit = async (req, res, next) => {
     if (!(article.draft.body || '').trim()) missing.push('תוכן');
     if (missing.length) throw httpError(400, `לפני ההגשה יש למלא: ${missing.join(' ו')}`);
     // An update of a published article must change something: otherwise the editor gets an identical "update"
-    // (and approving it would add a false publish marker to the analytics chart).
-    if (article.status === STATUS.PUBLISHED && article.published && !differsFromPublished(article)) {
-      throw httpError(400, 'אין שינויים להגשה');
+    // (and approving it would add a false publish marker to the analytics chart). This covers both ways of
+    // submitting an update: the article is still "published", or the editor sent the update back ("returned").
+    if (article.published && !differsFromPublished(article)) {
+      throw httpError(400, article.status === STATUS.RETURNED
+        ? 'הטיוטה זהה לגרסה שפורסמה, ולכן אין מה להגיש. תקנו את הכתבה לפי הערת העורך ואז הגישו שוב.'
+        : 'אין שינויים להגשה');
     }
-
     await transition(article, STATUS.PENDING, req.user); // 400 when the current status does not allow it
     logger.info(`Reporter ${req.user.username} submitted article ${article._id}`);
     res.json({ status: article.status, statusLabel: STATUS_LABELS_HE[article.status] });

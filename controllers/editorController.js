@@ -43,6 +43,7 @@ function cleanContent(input) {
     out[key] = text;
   });
   if (!out.title) throw httpError(400, 'חובה למלא כותרת');
+  if (!out.body.trim()) throw httpError(400, 'חובה למלא תוכן');
   if (out.imageUrl && !isValidImageLink(out.imageUrl)) throw httpError(400, 'קישור התמונה חייב להיות כתובת תקינה שמתחילה ב-http או https');
   return out;
 }

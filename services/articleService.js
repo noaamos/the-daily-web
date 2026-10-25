@@ -55,6 +55,16 @@ async function transition(article, to, user, opts = {}) {
   }
 
   if (to === STATUS.PUBLISHED) {
+    // Whatever way the draft got here (the reporter submitted it, the editor edited it), the public never gets an
+    // article without a title or text
+    const missing = [];
+    if (!(article.draft.title || '').trim()) missing.push('כותרת');
+    if (!(article.draft.body || '').trim()) missing.push('תוכן');
+    if (missing.length) {
+      const err = new Error(`אי אפשר לפרסם כתבה בלי ${missing.join(' ובלי ')}`);
+      err.status = 400;
+      throw err;
+    }
     // The draft becomes the version the public sees; the publish time is recorded for the Impact Analytics markers
     const now = new Date();
     article.published = article.draft.toObject();

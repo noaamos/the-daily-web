@@ -203,7 +203,7 @@
   width: 100%; padding: 0.55rem 0.8rem; font: inherit; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
 }
 .edit-form .field-name, .return-box .field-name { margin-top: 0.4rem; }
-.edit-form input.invalid { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(228, 87, 46, 0.2); }
+.edit-form :is(input, textarea).invalid { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(228, 87, 46, 0.2); }
 .field-error[hidden] { display: none; }
 .field-error { color: var(--accent); font-size: 0.85rem; margin: 0; }
 

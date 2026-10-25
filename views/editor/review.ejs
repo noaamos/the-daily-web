@@ -58,9 +58,11 @@
     <textarea id="f-summary" name="summary" rows="2" maxlength="500"><%= article.draft.summary %></textarea>
     <label for="f-body" class="field-name">תוכן (שורה ריקה = פסקה חדשה)</label>
     <textarea id="f-body" name="body" rows="12" maxlength="50000"><%= article.draft.body %></textarea>
+    <p class="field-error" id="body-error" hidden>חובה למלא תוכן - אי אפשר לפרסם כתבה בלי תוכן</p>
     <label for="f-image" class="field-name">קישור לתמונה</label>
     <input id="f-image" name="imageUrl" type="url" maxlength="500" value="<%= article.draft.imageUrl %>" dir="ltr">
-    <p class="field-error" id="edit-error" hidden></p>
+    <p class="field-error" id="image-error" hidden>הקישור חייב להיות כתובת תקינה שמתחילה ב-<bdi dir="ltr">http://</bdi> או <bdi dir="ltr">https://</bdi> (או להישאר ריק)</p>
+    <p class="field-error" id="edit-error" role="alert" hidden></p>
     <div class="action-row">
       <button type="submit" class="btn-accent">שמירת שינויים</button>
       <button type="button" class="btn-outline" id="edit-cancel">ביטול</button>
@@ -79,5 +81,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </main>
+<script src="/js/image-link.js" defer></script>
 <script src="/js/review.js" defer></script>
 <%- include('../partials/footer') %>

@@ -9,16 +9,7 @@
   const img = document.getElementById('image-preview-img');
   const statusEl = document.getElementById('image-preview-status');
 
-  // The same rule as the server (services/imageLink.js) and the edit script: http(s):// and a real host name
-  function isImageLink(text) {
-    if (!/^https?:\/\//i.test(text)) return false;
-    try {
-      const { protocol, hostname } = new URL(text);
-      return (protocol === 'http:' || protocol === 'https:') && /[a-z0-9]/i.test(hostname) && !/[\s%]/.test(hostname);
-    } catch (e) {
-      return false;
-    }
-  }
+  const isImageLink = window.isImageLink; // the rule is shared with the server's, see image-link.js
   const TYPING_DELAY_MS = 500; // wait until the reporter stops typing, so half a link is not loaded
   let timer;
   let attempt = 0; // a newer link makes the answer of an older one irrelevant

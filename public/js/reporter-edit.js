@@ -20,17 +20,7 @@
   const RETRY_MS = [2000, 5000, 10000];        // wait before retrying a failed save (the last one repeats)
   const KEEPALIVE_MAX_BYTES = 60000;           // browsers refuse "keepalive" requests above ~64KB
 
-  // The same rule as the server (services/imageLink.js): http:// or https:// and a real host name.
-  // "http://", "https://", "http://exa mple.com" and "http://." are not links.
-  function isImageLink(text) {
-    if (!/^https?:\/\//i.test(text)) return false;
-    try {
-      const { protocol, hostname } = new URL(text);
-      return (protocol === 'http:' || protocol === 'https:') && /[a-z0-9]/i.test(hostname) && !/[\s%]/.test(hostname);
-    } catch (e) {
-      return false;
-    }
-  }
+  const isImageLink = window.isImageLink; // the rule is shared, see image-link.js
 
   const url = `/reporter/api/articles/${page.dataset.articleId}/draft`;
   const f = form.elements;

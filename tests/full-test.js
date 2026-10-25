@@ -410,6 +410,13 @@ async function reporterTests() {
   page = await editPage(R1, P);
   check('the edit page shows the note, the live-article explanation and the locked category', page.text.includes('צריך מקור לעדכון') && page.text.includes('זה עדכון לכתבה שפורסמה') && /name="category" disabled/.test(page.text));
   check('category still cannot change while the update is returned', (await save(R1, P, { title: `${T} גרסה 2`, body: 'גוף גרסה 2', category: 'tech' })).status === 400);
+  { // the editor returned the update; if the reporter changes nothing there is nothing new to approve
+    const live1 = (await db(P)).published;
+    await save(R1, P, { title: live1.title, summary: live1.summary, body: live1.body, imageUrl: live1.imageUrl });
+    const same = await submit(R1, P);
+    check('a returned update that is identical to the published version cannot be resubmitted (400, clear message)', same.status === 400 && /זהה לגרסה שפורסמה/.test(same.body.error), `${same.status} ${JSON.stringify(same.body)}`);
+    check('the article stays returned and no publish marker was added', (await db(P)).status === 'returned' && (await db(P)).publishHistory.length === 1);
+  }
   check('the reporter fixes the update and submits again', (await save(R1, P, { title: `${T} גרסה 3`, summary: 'תקציר 3', body: 'גוף גרסה 3' })).status === 200 && (await submit(R1, P)).status === 200);
   check('the public still sees version 1', (await live()).includes('גוף גרסה 1'));
 
@@ -797,7 +804,7 @@ async function reporterTests() {
     ['empty title', { ...good, title: '  ' }], ['missing fields', { title: 'x' }], ['title not string', { ...good, title: 5 }],
     ['title too long', { ...good, title: 'a'.repeat(201) }], ['summary too long', { ...good, summary: 'a'.repeat(501) }],
     ['body too long', { ...good, body: 'a'.repeat(50001) }], ['javascript: image', { ...good, imageUrl: 'javascript:alert(1)' }],
-    ['relative image', { ...good, imageUrl: '/etc/passwd' }], ['data: image', { ...good, imageUrl: 'data:text/html,x' }],
+    ['blank body', { ...good, body: '  \n ' }], ['relative image', { ...good, imageUrl: '/etc/passwd' }], ['data: image', { ...good, imageUrl: 'data:text/html,x' }],
     ['bare http://', { ...good, imageUrl: 'http://' }], ['bare https://', { ...good, imageUrl: 'https://' }],
     ['image with a space in the host', { ...good, imageUrl: 'http://exa mple.com/a.png' }], ['image host is only a dot', { ...good, imageUrl: 'http://.' }],
   ];
@@ -831,6 +838,14 @@ async function reporterTests() {
   check('approve draft -> 400', (await call('POST', api('approve')(draftA._id), { cookie: E })).status === 400);
   check('approve returned -> 400', (await call('POST', api('approve')(retA._id), { cookie: E })).status === 400);
   check('approve published -> 400', (await call('POST', api('approve')(published._id), { cookie: E })).status === 400);
+  { // a pending article without text (it cannot get here through the API any more) must not be published
+    const noText = await Article.create({ author: published.author, category: 'tech', status: 'pending', draft: { title: 'בלי תוכן', body: '  ' } });
+    const ap = await call('POST', api('approve')(noText._id), { cookie: E });
+    check('approve an article without text -> 400 with a clear message, status unchanged', ap.status === 400 && /בלי תוכן/.test(ap.body.error) && (await Article.findById(noText._id).lean()).status === 'pending', ap.status);
+    const noTitle = await Article.create({ author: published.author, category: 'tech', status: 'pending', draft: { title: '', body: 'יש גוף' } });
+    check('approve an article without a title -> 400', (await call('POST', api('approve')(noTitle._id), { cookie: E })).status === 400);
+    await Article.deleteMany({ _id: { $in: [noText._id, noTitle._id] } });
+  }
   check('return draft -> 400', (await call('POST', api('return')(draftA._id), { cookie: E, json: { note: 'x' } })).status === 400);
   for (const [label, b] of [['no body', {}], ['blank', { note: '   ' }], ['number', { note: 5 }], ['array', { note: ['a'] }], ['too long', { note: 'a'.repeat(1001) }]]) {
     check(`return rejects note: ${label}`, (await call('POST', api('return')(pb._id), { cookie: E, json: b })).status === 400);
