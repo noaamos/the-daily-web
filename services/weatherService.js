@@ -1,7 +1,8 @@
 // Owner: member 1
-// The server fetches the weather at most once every 15 minutes and keeps it in memory.
-// Thousands of readers -> still only ~4 calls per hour to the external API.
-const { WEATHER_CACHE_MS } = require('../config/constants');
+// The server fetches the weather at most once every WEATHER_CACHE_MS (5 minutes) and keeps it in memory.
+// Thousands of readers -> still only ~12 calls per hour to the external API.
+// Data older than WEATHER_MAX_AGE_MS (15 minutes, the requirement) is never returned, even when the service is down.
+const { WEATHER_CACHE_MS, WEATHER_MAX_AGE_MS } = require('../config/constants');
 const logger = require('../config/logger');
 
 const API_URL = 'https://api.openweathermap.org/data/2.5/weather';
@@ -38,16 +39,17 @@ async function fetchFromApi() {
 }
 
 function withMeta() {
-  if (!cache.data) return null;
+  const age = Date.now() - cache.fetchedAt;
+  if (!cache.data || age >= WEATHER_MAX_AGE_MS) return null; // too old to show: better no weather than old weather
   return {
     ...cache.data,
     updatedAt: new Date(cache.fetchedAt).toISOString(),
-    stale: Date.now() - cache.fetchedAt >= WEATHER_CACHE_MS, // true = old data, because the service failed
+    expiresInMs: WEATHER_MAX_AGE_MS - age, // the page hides the data after this long, without trusting its own clock
   };
 }
 
 /**
- * Returns { ...weather, updatedAt, stale } or null if we have never managed to get the weather.
+ * Returns { ...weather, updatedAt, expiresInMs } or null when there is no weather younger than 15 minutes.
  * Never throws - the page must work even when the weather service is down.
  */
 async function getWeather() {

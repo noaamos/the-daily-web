@@ -216,8 +216,8 @@ exports.listArticles = async (req, res, next) => {
 };
 
 exports.weather = async (req, res) => {
+  res.set('Cache-Control', 'no-store'); // a browser must never reuse an answer: it would add its own age to the data's age
   const data = await weatherService.getWeather(); // never throws
   if (!data) return res.status(503).json({ error: 'מזג האוויר לא זמין כרגע' });
-  res.set('Cache-Control', 'public, max-age=300'); // browsers may reuse it for 5 minutes
   res.json(data);
 };

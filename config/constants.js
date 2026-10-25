@@ -29,9 +29,10 @@ const CATEGORY_LABELS_HE = {
 const PAGE_SIZE = 20; // articles per infinite-scroll load
 const COMMENT_LIMIT = { max: 3, windowMs: 60 * 1000 }; // guest: 3 comments per minute per device
 const LOGIN_LIMIT = { maxPerAccount: 5, maxPerIp: 50, windowMs: 10 * 60 * 1000 }; // wrong passwords per 10 minutes, see middleware/loginThrottle.js
-const WEATHER_CACHE_MS = 15 * 60 * 1000; // weather data may be up to 15 minutes old
+const WEATHER_MAX_AGE_MS = 15 * 60 * 1000; // the requirement: weather shown to users is never older than this
+const WEATHER_CACHE_MS = 5 * 60 * 1000;    // the server refreshes it this often (and the page asks this often), so the age on screen stays well under the limit
 
 module.exports = {
   ROLES, STATUS, STATUS_LABELS_HE, CATEGORIES, CATEGORY_LABELS_HE,
-  PAGE_SIZE, COMMENT_LIMIT, LOGIN_LIMIT, WEATHER_CACHE_MS,
+  PAGE_SIZE, COMMENT_LIMIT, LOGIN_LIMIT, WEATHER_MAX_AGE_MS, WEATHER_CACHE_MS,
 };
