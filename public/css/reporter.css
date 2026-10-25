@@ -58,6 +58,20 @@
 .reporter-page .notice.info a { margin-inline-start: 0.5rem; font-weight: 600; }
 .reporter-page .field-hint { margin: 0; font-size: 0.85rem; color: var(--warn); }
 .reporter-page .field-hint[hidden] { display: none; }
+.reporter-page .field-hint.is-error { color: var(--danger); }
+/* picture behind the image-link field (image-preview.js) */
+.reporter-page .image-preview { display: grid; gap: 0.4rem; margin-top: 0.2rem; }
+.reporter-page .image-preview .field-hint:not(.is-error) { color: var(--muted); } /* "loading..." is not a warning */
+.reporter-page .image-preview[hidden] { display: none; }
+.reporter-page .image-preview .preview-title { margin: 0; font-weight: 600; font-size: 0.9rem; }
+/* an image link that is not a valid address: red field (the red hint and the reason next to the buttons are in the page) */
+.reporter-page .edit-form input[aria-invalid="true"] { border-color: var(--danger); }
+.reporter-page .form-actions .save-status[hidden] { display: none; }
+.reporter-page .image-preview img {
+  display: block; width: 100%; max-width: 420px; height: auto; aspect-ratio: 16 / 9; object-fit: cover;
+  background: var(--border); border-radius: var(--radius);
+}
+.reporter-page .image-preview img[hidden] { display: none; }
 .reporter-page .save-status { font-size: 0.9rem; color: var(--muted); }
 .reporter-page .save-status.error { color: var(--danger); }
 
