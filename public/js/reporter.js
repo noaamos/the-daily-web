@@ -1,6 +1,4 @@
-// Owner: member 3
-// Vanilla JS + fetch() only. No page reloads.
-// "My articles" dashboard: the reporter's own articles with their status, status filter chips and a "load more" button.
+// Reporter dashboard: own articles, status filters, and load more via fetch().
 (function () {
   const rowsEl = document.getElementById('article-rows');
   const statusEl = document.getElementById('list-status');
@@ -17,8 +15,8 @@
   if (!rowsEl) return; // not the dashboard page
 
   const VALID_STATUSES = ['draft', 'returned', 'pending', 'published'];
-  // status: '' = all articles. unsent: only published articles with changes that were not submitted.
-  // requestId: an answer that arrives after a newer request is ignored.
+// status: '' shows all; unsent filters published articles with unsubmitted changes.
+// requestId ignores stale responses from earlier requests.
   const state = { nextPage: 1, loading: false, creating: false, status: '', unsent: false, requestId: 0 };
 
   // After submitting an article the edit page sends the reporter here with ?submitted=1: show a short notice, once
@@ -100,9 +98,7 @@
       el('div', { class: 'row-badges' }, badges),
     ]);
   }
-
-  // reset = true: start again from page 1 (the filter changed): the rows are replaced when the answer arrives.
-  // reset = false: append the next page ("load more").
+// reset=true: replace rows from page 1; false: append the next page.
   async function load(reset) {
     if (!reset && state.loading) return; // ignore a second click on "load more" while a request is running
     const mine = ++state.requestId;
@@ -212,8 +208,7 @@
   formEl.addEventListener('submit', createArticle);
   moreBtn.addEventListener('click', () => load(false));
 
-  // The filter from the address (?status=returned&unsent=1). A value that is not a status is ignored: the page shows
-  // everything, and syncFilters() removes the unknown value from the address.
+// Read filters from URL; ignore invalid statuses and remove them via syncFilters().
   state.status = VALID_STATUSES.includes(params.get('status')) ? params.get('status') : '';
   state.unsent = params.get('unsent') === '1';
   syncFilters();

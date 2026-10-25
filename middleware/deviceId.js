@@ -1,5 +1,4 @@
 // Gives every browser a random anonymous id in a cookie -> req.deviceId
-// Used by: comment rate limit (member 2), viewed/not-viewed filter (member 1).
 const crypto = require('crypto');
 
 const COOKIE = 'dw_device';

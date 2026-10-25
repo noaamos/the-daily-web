@@ -1,6 +1,5 @@
-// Owner: member 2
-// Demo comments for the article page. Only articles the public can see (published != null) get comments.
-// Called from seed.js after seedPendingUpdates(), so live articles that have a pending update are included too.
+// Seed demo comments only for articles with a published version.
+// Runs after seedPendingUpdates() to include articles with pending updates.
 const Comment = require('../models/Comment');
 
 const ARTICLES_WITH_COMMENTS = 30;      // the 30 most recently published articles (what the home page shows first)

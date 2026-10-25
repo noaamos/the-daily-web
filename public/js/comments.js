@@ -1,7 +1,6 @@
-// Owner: member 2
-// Vanilla JS + fetch() only. No page reloads.
-// Article page comments: load the list, add a new comment without reloading, show the 3-per-minute limit message.
-// User text is always shown with textContent (never as HTML), so a comment like "<script>" is just displayed as text.
+// Load and post comments via fetch() without page reloads.
+// Show the 3-per-minute limit message.
+// Use textContent to safely display user input and prevent HTML injection.
 
 (function () {
   const section = document.getElementById('comments');
@@ -32,8 +31,7 @@
     el.classList.toggle('is-error', Boolean(isError));
   }
 
-  // Editor only: the buttons are shown for convenience. The server decides (PUT / DELETE need the editor role),
-  // so changing this attribute in the browser only leads to a 403 message.
+// Editor-only buttons; the server enforces permissions and returns 403 for unauthorized actions.
   const isEditor = section.dataset.isEditor === '1';
 
   // Builds one <button> (used for the editor's actions)
@@ -94,17 +92,15 @@
     }
   }
 
-  // Back to the normal view of a comment (cancel, Escape, after saving). The focus goes to its "edit" button,
-  // so a keyboard user stays at the same place in the list.
+// Restore comment view and return focus to the edit button for keyboard accessibility.
   function backToView(li, comment) {
     showView(li, comment);
     const editBtn = li.querySelector('.comment-action');
     if (editBtn) editBtn.focus();
   }
 
-  // Takes a comment out of the list (deleted here, or already gone on the server) and shows the matching message:
-  // the usual empty message when it was the last one, otherwise `message`. The focus moves to the next comment's
-  // "edit" button, else the previous one's, else the name field of the form.
+// Remove a deleted or missing comment and update the list message.
+// Move focus to the next/previous edit button, or the form's name field.
   function removeFromList(li, message, isError) {
     const neighbour = li.nextElementSibling || li.previousElementSibling;
     li.remove();

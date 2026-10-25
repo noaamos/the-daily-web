@@ -1,6 +1,5 @@
-// Owner: member 1
-// Home page hero carousel. The slides are rendered by the server; this only switches which one is visible.
-// Auto-advances, pauses while the pointer or keyboard focus is inside, and stays still for people who prefer reduced motion.
+// Server-rendered hero carousel with auto-advance.
+// Pauses on hover/focus and respects reduced-motion preferences.
 
 (function () {
   const root = document.querySelector('.carousel');

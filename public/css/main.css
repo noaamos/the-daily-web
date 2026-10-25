@@ -1,6 +1,6 @@
-/* Shared styles - agree before changing. Area-specific styles go in their own file (reporter.css, editor.css...).
-   Design system: warm paper background, white rounded cards with soft shadows, dark pill buttons, one red accent.
-   Every page file below uses these tokens + the shared components (.card-surface, .pill, .btn-*, .chip...) - change a token here and the whole site follows. */
+/* Shared styles and design tokens; changes affect the entire site.
+   Theme: warm background, white rounded cards, dark buttons, red accent.
+   Keep area-specific styles in separate CSS files. */
 @import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&display=swap");
 
 :root {
@@ -205,9 +205,8 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 @media (max-width: 900px) {
   .layout { flex-direction: column; align-items: stretch; padding-inline: 1rem; }
-  /* On narrow screens the sidebar boxes and the page content share one column (display: contents), ordered with
-     "order": the front page section with the hero (-2), the weather (-1), latest news (1), most read (2), and the rest
-     of the page (3) */
+/* On narrow screens, the sidebar and content share one column.
+   Order: hero (-2), weather (-1), latest (1), most read (2), content (3). */
   .layout { gap: 0; }
   .layout > main { display: contents; }
   .layout > main > :not(.front) { order: 3; }

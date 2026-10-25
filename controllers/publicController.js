@@ -1,4 +1,3 @@
-// Owner: member 1
 const mongoose = require('mongoose');
 const Article = require('../models/Article');
 const DeviceView = require('../models/DeviceView');
@@ -43,17 +42,16 @@ function findCards(sort, limit, filter = PUBLISHED) {
   return Article.find(filter).sort(sort).limit(limit).select(CARD_FIELDS).populate('author', 'displayName').lean();
 }
 
-// "Most read" and "latest news" boxes of the article page's sidebar (the home page builds its own, see homePage).
-// The article being read is left out of both, so it never recommends itself.
+// Sidebar: most-read and latest articles, excluding the current article.
+// Home page sidebar is handled separately in homePage.
 async function sidebarNews(articleId) {
   const others = { ...PUBLISHED, _id: { $ne: articleId } };
   const [latest, mostRead] = await Promise.all([findCards(SORTS.date, 4, others), findCards(SORTS.popular, 5, others)]);
   return { latest: latest.map(toCard), mostRead: mostRead.map(toCard) };
 }
 
-// Home page. The "front page" section (carousel, medium cards, picks, latest, most read) is rendered on the server;
-// the "all articles" feed below it is loaded with Ajax by feed.js.
-// Filters in the URL (/?category=sports) pre-select the controls, so category links and the Back button work.
+// Home page: server-rendered featured sections and Ajax-loaded feed (feed.js).
+// URL filters pre-select controls and support navigation via category links and Back.
 exports.homePage = async (req, res, next) => {
   try {
     const initial = {
@@ -88,8 +86,7 @@ function notFoundPage(res) {
   res.status(404).render('error', { title: 'הכתבה לא נמצאה', message: 'הכתבה שחיפשת לא קיימת או שעדיין לא פורסמה' });
 }
 
-// Body is stored as plain text; an empty line separates paragraphs. The view prints each paragraph
-// with <%= %> (escaped), so text written by a reporter can never inject HTML or scripts into the page.
+// Split plain-text body into paragraphs and render with escaped <%= %> to prevent HTML/script injection.
 function toParagraphs(body) {
   return String(body || '')
     .split(/\r?\n\s*\r?\n/)
@@ -106,8 +103,8 @@ function trackVisit(articleId, deviceId) {
     .catch((err) => logger.error(`DeviceView failed for ${articleId}: ${err.message}`));
 }
 
-// Server-rendered article page: the full text is in the HTML the server returns (search engines can read it
-// without running JavaScript). Only the comments are loaded later with Ajax.
+// Server-rendered article page with SEO-friendly full text.
+// Comments are loaded separately via Ajax.
 exports.articlePage = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return notFoundPage(res);
@@ -119,8 +116,7 @@ exports.articlePage = async (req, res, next) => {
       .lean();
     if (!article) return notFoundPage(res);
 
-    // A HEAD request (an uptime monitor, a link preview) only asks whether the page exists: nobody reads the article,
-    // so it is not a view. Every real visit (GET), including a refresh, is counted.
+// Count GET requests (including refreshes) as views; exclude HEAD requests.
     if (req.method !== 'HEAD') trackVisit(article._id, req.deviceId);
 
     const wasUpdated = article.lastPublishedAt && article.lastPublishedAt > article.firstPublishedAt;
@@ -163,8 +159,7 @@ function parseFeedQuery(query) {
   const sort = query.sort || 'date';
   if (!isSort(sort)) throw badRequest('סוג מיון לא תקין');
 
-  // snapshot: the moment the first page was loaded. Later pages only include articles published
-  // up to that moment, so a newly published article can't push items down and cause duplicates.
+// snapshot: Fixes the publication cutoff at the first page load to prevent duplicates during pagination.
   let snapshot = new Date();
   if (query.snapshot !== undefined) {
     if (typeof query.snapshot !== 'string' || !SNAPSHOT_FORMAT.test(query.snapshot)) throw badRequest('snapshot לא תקין');

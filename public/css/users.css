@@ -1,4 +1,4 @@
-/* Owner: member 2 - user management screen (/editor/users). Loaded after editor.css and reuses its classes. */
+/* User management styles (/editor/users), extending editor.css. */
 .users-toolbar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-bottom: 1.25rem; }
 /* white pill with a soft shadow, like the home page filter bar (the selector repeats "input" to beat the shared field rule) */
 .users-toolbar input.users-search {

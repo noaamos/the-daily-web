@@ -1,4 +1,3 @@
-// Owner: member 2 - user management. Every route here is editor-only (router.use(requireRole('editor')) in routes/users.js).
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
@@ -38,8 +37,8 @@ function checkRole(value) {
   return value;
 }
 
-// Logs a user out everywhere: deletes their sessions from the session store (collection "sessions", made by connect-mongo,
-// where each session is saved as a JSON text that contains the user id). `keepSessionId`: the session to leave alone.
+// Logs out a user from all devices by deleting their connect-mongo sessions.
+// Sessions store the user ID as JSON; keepSessionId excludes a specific session.
 async function endSessionsOf(userId, keepSessionId) {
   const filter = { session: { $regex: `"userId":"${userId}"` } };
   if (keepSessionId) filter._id = { $ne: keepSessionId };
@@ -108,8 +107,7 @@ exports.update = async (req, res, next) => {
 
     await user.save(); // duplicate username -> 11000 -> 409 in errorHandler
     if (req.body.password !== undefined) {
-      // A new password must end the logins made with the old one (someone who knew it stays logged in otherwise).
-      // The editor who changed their OWN password keeps the session they are using.
+// Invalidate old-password sessions, except the editor's current session when changing their own password.
       const ended = await endSessionsOf(user._id, isSelf ? req.sessionID : null);
       logger.info(`Password of ${user.username} changed by ${req.user.username}: ${ended} other session(s) ended`);
     }

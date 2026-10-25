@@ -1,4 +1,3 @@
-// Owner: member 2
 // Permissions are decided ONLY from the server-side session, never from data the browser sends.
 const User = require('../models/User');
 const logger = require('../config/logger');

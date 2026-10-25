@@ -1,7 +1,5 @@
-// Owner: member 1
-// The server fetches the weather at most once every WEATHER_CACHE_MS (5 minutes) and keeps it in memory.
-// Thousands of readers -> still only ~12 calls per hour to the external API.
-// Data older than WEATHER_MAX_AGE_MS (15 minutes, the requirement) is never returned, even when the service is down.
+// Cache weather in memory for WEATHER_CACHE_MS (5 min), limiting API calls to ~12/hour.
+// Never return data older than WEATHER_MAX_AGE_MS (15 min), even if the API is unavailable.
 const { WEATHER_CACHE_MS, WEATHER_MAX_AGE_MS } = require('../config/constants');
 const logger = require('../config/logger');
 
@@ -49,8 +47,8 @@ function withMeta() {
 }
 
 /**
- * Returns { ...weather, updatedAt, expiresInMs } or null when there is no weather younger than 15 minutes.
- * Never throws - the page must work even when the weather service is down.
+ * Returns fresh weather data with updatedAt and expiresInMs, or null if older than 15 minutes.
+ * Never throws, even when the weather service is unavailable.
  */
 async function getWeather() {
   const now = Date.now();
@@ -64,8 +62,7 @@ async function getWeather() {
     return withMeta();
   }
 
-  // If 1000 readers arrive right when the cache expires, only the first one sends a request;
-  // the others wait for that same request instead of sending 999 more.
+  // Share one in-flight request when the cache expires to prevent duplicate API calls.
   if (!inFlight) {
     inFlight = fetchFromApi()
       .then((data) => {

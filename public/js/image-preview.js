@@ -1,7 +1,5 @@
-// Owner: member 3
-// Reporter edit page: shows the picture behind the "image link" field, so a link that does not work is noticed before
-// the article is submitted. Only a valid http:// or https:// address is ever loaded (the server accepts nothing
-// else); any other text is explained by the red hint under the field. Runs on read-only pages too.
+// Reporter image preview: loads valid HTTP(S) URLs and shows errors for invalid links.
+// Also works on read-only pages.
 (function () {
   const input = document.getElementById('f-image');
   const box = document.getElementById('image-preview');

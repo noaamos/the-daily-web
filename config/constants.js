@@ -1,4 +1,4 @@
-//shared
+// Shared constants for the server and client
 const ROLES = { REPORTER: 'reporter', EDITOR: 'editor' };
 
 const STATUS = {

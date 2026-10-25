@@ -1,16 +1,7 @@
-// Owner: member 2
-// A guest may post at most COMMENT_LIMIT.max comments per COMMENT_LIMIT.windowMs from the same device.
-// Enforced here on the server; on violation -> 429 with a Hebrew message.
-//
-// "Same device" means the device cookie OR the IP address: a script (or a browser) that throws its cookie away and gets
-// a new one with every request is still the same device. The count comes from the comments already saved in MongoDB,
-// so the limit also survives a server restart.
-//
-// Counting and saving are two separate steps. Without care, 12 requests that arrive at the same moment all count 0
-// and all get saved. So the requests of one guest take turns: this middleware holds a lock on the guest (device and IP)
-// from the count until the response of the request is finished, and the next request of the same guest waits for it.
-// The lock lives in the memory of this server process, which is right for the single process this project runs as.
-// (With several server processes the count would have to be an atomic counter in the database instead.)
+// Limit comments per device cookie or IP, returning 429 on violation.
+// Counts are stored in MongoDB and survive server restarts.
+// In-memory locks prevent concurrent requests from bypassing the limit.
+// Supports a single server process; multiple processes require atomic DB enforcement.
 const Comment = require('../models/Comment');
 const logger = require('../config/logger');
 const { COMMENT_LIMIT } = require('../config/constants');

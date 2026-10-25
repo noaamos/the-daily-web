@@ -1,4 +1,3 @@
-// Owner: member 2
 const User = require('../models/User');
 const logger = require('../config/logger');
 const loginThrottle = require('../middleware/loginThrottle');

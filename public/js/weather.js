@@ -1,8 +1,5 @@
-// Owner: member 1
-// Weather widget in the sidebar. Data comes from our own server (/api/weather), never directly
-// from OpenWeatherMap - so the API key stays secret and the server's cache is used.
-// The data shown is never older than 15 minutes: the server says how long it may still be shown (expiresInMs),
-// and the widget replaces it with "not available" when that time is over (a tab left open, or the service is down).
+// Weather widget fetches cached data from /api/weather, keeping the API key server-side.
+// Uses expiresInMs to hide data older than 15 minutes or when it expires.
 (function () {
   const widget = document.getElementById('weather-widget');
   if (!widget) return;

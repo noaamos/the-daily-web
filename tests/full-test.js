@@ -1,14 +1,8 @@
-// Full automated test run: seed data, public site, view counting, permissions, editor area, injection attempts,
-// load and server restart. Owner: member 4 (covers the whole system).
-// The reporter area (member 3) is tested in the function reporterTests(), sections R1 to R9.
-//
-// WARNING: this runs `npm run seed`, which DELETES all data in the database from MONGO_URI.
-//          Run it only against a development database:   npm test
-//
-// It starts the server on port 3005 by itself, so stop any other copy of the app that uses that port.
-//
-// Works the same on Windows, macOS and Linux: every program is started with process.execPath (the running Node, so no
-// "npm" / "npm.cmd" / shell differences), file paths are compared after turning \ into /, and nothing needs a .git folder.
+// Full test suite: public site, views, permissions, reporter/editor flows, security, load, and restarts.
+// Reporter tests: reporterTests() (R1–R9).
+// WARNING: Runs npm run seed, deleting all data at MONGO_URI. Use a development DB only.
+// Starts the server on port 3005; ensure the port is free.
+// Cross-platform (Windows/macOS/Linux) using process.execPath; no .git required.
 if (!process.argv.includes('--yes')) {
   console.error('This test wipes the database (it runs the seed). Run it with:  npm test   (or: node tests/full-test.js --yes)');
   process.exit(1);

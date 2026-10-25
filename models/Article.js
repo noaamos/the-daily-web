@@ -1,10 +1,7 @@
-// SHARED MODEL - agreed by the whole team. Open a small separate PR for any change.
-//
-// Key idea: an article holds two versions of its content.
-//   - `published`: what the public sees. null until the first approval.
-//   - `draft`:     what the reporter is working on (autosaved). Copied into `published` when an editor approves.
-// So the public site always queries `published != null` and reads from `published.*`,
-// no matter what the current `status` is. This is what keeps the old version visible while an update is in review.
+// Shared article model.
+// Articles store two versions: published (public) and draft (autosaved).
+// On approval, the draft is copied to published.
+// Public queries published != null, regardless of status, keeping the live version visible during review.
 const mongoose = require('mongoose');
 const { STATUS, CATEGORIES } = require('../config/constants');
 

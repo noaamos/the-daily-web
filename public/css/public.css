@@ -1,5 +1,5 @@
-/* Owner: member 1 - public site (home page, feed, article page, weather)
-   Colors, radii, shadows and fonts come from the tokens in main.css - nothing here hard-codes a palette. */
+/* Public site styles: home, feed, articles, and weather.
+   Uses shared design tokens from main.css. */
 
 /* ==== Front page (top of the home page, inside the main column) ==== */
 .front { margin-bottom: 2.5rem; display: flex; flex-direction: column; gap: 1.75rem; }
@@ -83,10 +83,9 @@
   .layout > .sidebar.sidebar-after > :is(.trending, .front-latest) { order: 4; }
 }
 
-/* Phones and tablets (portrait or landscape; a narrow desktop window counts too): the weather, "latest news" and "most read"
-   boxes belong to the main home page only. They are hidden on an article page (.sidebar-after) and on the home page
-   while a search or a category from the top bar is active (.is-filtered: written by the server, toggled by feed.js).
-   A desktop screen is not affected: it shows them everywhere, as before. */
+/* On narrow screens, weather, latest news, and most read appear only on the unfiltered home page.
+   Hidden on article pages (.sidebar-after) and during search/category filters (.is-filtered).
+   Desktop layout remains unchanged. */
 @media (max-width: 1024px), (hover: none) and (pointer: coarse) {
   .layout > .sidebar.sidebar-after,
   .layout > .sidebar.is-filtered { display: none; }
@@ -218,7 +217,6 @@
 
 .comments { margin-top: 1.5rem; padding: 1.5rem 2rem; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
 .comments h2 { margin: 0 0 1rem; font-size: 1.4rem; }
-/* Owner: member 2 - comment list + form (filled by public/js/comments.js) */
 .comment-list { list-style: none; padding: 0; margin: 0; max-width: 70ch; }
 .comment { padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
 .comment-meta { margin: 0 0 0.25rem; font-size: 0.85rem; color: var(--muted); }

@@ -1,7 +1,5 @@
-// Owner: member 4
-// Vanilla JS + fetch() only. No page reloads.
-// Editor dashboard: status filter and the article list with "load more".
-// Approving / returning happens on the review page (/editor/articles/:id), where the editor sees the content first.
+// Editor dashboard: article list with status filters and load more.
+// Approvals and returns are handled on the article review page.
 (function () {
   const rowsEl = document.getElementById('article-rows');
   const statusEl = document.getElementById('list-status');

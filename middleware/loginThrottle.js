@@ -1,10 +1,7 @@
-// Owner: member 2
-// Limits wrong passwords, so a script cannot try thousands of passwords for an account.
-//   - one account from one IP address: LOGIN_LIMIT.maxPerAccount wrong attempts inside the time window
-//   - one IP address, any accounts:    LOGIN_LIMIT.maxPerIp wrong attempts inside the time window
-// While a limit is reached even the right password is refused (otherwise the guessing would simply go on).
-// Counting per account AND IP address means a stranger cannot lock the real editor out of the system: the editor
-// logs in from another address. The counters are kept in the memory of this server process; a restart clears them.
+// Limit failed logins per account+IP and per IP using LOGIN_LIMIT thresholds.
+// Reject all attempts while a limit is reached, even with a correct password.
+// Per-account+IP limits prevent account lockout from other IPs.
+// Counters are stored in memory and reset on server restart.
 const { LOGIN_LIMIT } = require('../config/constants');
 
 const failures = new Map(); // key -> timestamps (ms) of the wrong attempts that are still inside the window

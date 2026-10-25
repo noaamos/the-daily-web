@@ -1,4 +1,4 @@
-// Owner: member 2
+
 const router = require('express').Router();
 const c = require('../controllers/authController');
 

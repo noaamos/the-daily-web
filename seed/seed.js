@@ -1,4 +1,3 @@
-// Owner: member 2
 // Starter seed so everyone has data from day one. Run: npm run seed  (DELETES existing data!)
 require('dotenv').config();
 const mongoose = require('mongoose');
@@ -58,11 +57,11 @@ async function seed() {
   }
   const inserted = await Article.insertMany(articles);
   await Article.syncIndexes();
-  const updatesCount = await seedPendingUpdates(inserted, editor._id); // member 4: pending updates of live articles
-  const viewInfo = await seedViewStats(inserted, editor._id); // member 4: hourly views + publish history
+  const updatesCount = await seedPendingUpdates(inserted, editor._id); // pending updates of live articles
+  const viewInfo = await seedViewStats(inserted, editor._id); // hourly views + publish history
   console.log(`Seeded ${updatesCount} pending updates of published articles`);
   console.log(`Seeded views: ${viewInfo.buckets} hourly buckets for ${viewInfo.articles} published articles`);
-  const commentInfo = await seedComments(inserted); // member 2: demo comments on the newest live articles
+  const commentInfo = await seedComments(inserted); // demo comments on the newest live articles
   console.log(`Seeded ${commentInfo.comments} comments on ${commentInfo.articles} published articles`);
 
   console.log(`Seeded: 1 editor, ${reporters.length} reporters, ${ARTICLE_COUNT} articles`);

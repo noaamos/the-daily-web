@@ -1,6 +1,4 @@
-/* Owner: member 3 - reporter area
-   Uses the shared design system from main.css: white cards (shadow tokens), pill buttons, shared form fields,
-   shared status badges and category chips. Only reporter-specific layout lives here. */
+/* Reporter-specific styles and layout, using shared design tokens and components from main.css. */
 .reporter-page { max-width: 1320px; margin: 0 auto; padding: 1.25rem 1.5rem 1.5rem; }
 .reporter-page .page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
 .reporter-page .section-title { margin: 0; }

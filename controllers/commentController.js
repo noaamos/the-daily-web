@@ -1,4 +1,3 @@
-// Owner: member 2
 const mongoose = require('mongoose');
 const Comment = require('../models/Comment');
 const Article = require('../models/Article');

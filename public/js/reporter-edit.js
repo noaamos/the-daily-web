@@ -1,7 +1,5 @@
-// Owner: member 3
-// Vanilla JS + fetch() only. No page reloads.
-// Edit page autosave: the form is sent to the server a moment after the reporter stops typing.
-// Rules: only one request at a time, the newest version always wins, and nothing typed is ever thrown away.
+// Reporter edit page: autosaves changes via fetch() after typing pauses.
+// Processes one request at a time, preserving all edits and the latest version.
 (function () {
   const page = document.querySelector('.edit-page');
   const form = document.getElementById('edit-form');
@@ -66,9 +64,8 @@
     debounceTimer = maxTimer = retryTimer = null;
   }
 
-  // A half-typed image link ("htt") would make the server reject the whole draft, title and text included.
-  // So an invalid link is not sent: the last valid one is kept. While the link is invalid the article cannot be
-  // submitted: otherwise it would go to the editor with the OLD link, not the one that is typed in the field.
+// Autosave keeps the last valid image URL to prevent draft rejection.
+// Block submission while the URL is invalid to avoid submitting an outdated image.
   const imageLinkIsBad = () => f.imageUrl.value.trim() !== '' && !isImageLink(f.imageUrl.value.trim());
 
   // The submit button is off while a submit/discard is running, and while the image link is invalid
@@ -262,8 +259,7 @@
     schedule();
   });
 
-  // When there is nothing to send (the autosave already did it) the button would look dead: confirm the saved state
-  // for a moment instead, then go back to the normal status text
+// If autosave already completed, briefly show a saved confirmation before restoring the normal status.
   const CONFIRM_MS = 2500;
   function confirmSaved() {
     // An invalid image link is never sent to the server, so "everything is saved" would not be true

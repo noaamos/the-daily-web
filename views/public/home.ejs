@@ -10,7 +10,6 @@
 <div class="layout">
   <main>
     <% if (front.featured) { %>
-    <!-- Owner: member 1. "Front page": rendered on the server, hidden while a search / filter is active -->
     <section id="front" class="front" aria-label="כתבות מובילות" <%= showFront ? '' : 'hidden' %>>
       <div class="front-main">
         <% if (front.medium.length) { %>

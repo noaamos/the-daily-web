@@ -1,14 +1,12 @@
-// Owner: member 4
-// Called from the public article page (member 1) on every visit.
+// Called on every public article page visit.
 const mongoose = require('mongoose');
 const ViewStat = require('../models/ViewStat');
 const Article = require('../models/Article');
 
 const HOUR_MS = 60 * 60 * 1000;
 
-// Every visit is one atomic $inc on a per-article, per-hour counter (see models/ViewStat.js),
-// so thousands of concurrent readers never create one document per view.
-// `deviceId` is not used here: DeviceView (viewed / not viewed filter) is written by the caller.
+// Atomically increment hourly view counters using $inc, avoiding per-view documents.
+// deviceId is unused here; the caller handles DeviceView tracking.
 // eslint-disable-next-line no-unused-vars
 async function recordView(articleId, deviceId) {
   const bucket = new Date(Math.floor(Date.now() / HOUR_MS) * HOUR_MS);
@@ -18,8 +16,8 @@ async function recordView(articleId, deviceId) {
   ]);
 }
 
-// Returns data for the Impact Analytics chart: { title, total, buckets: [{ t, count }], publishes: [Date] }
-// or null when the article does not exist (the controller answers 404).
+// Returns Impact Analytics data (title, total, buckets, publishes).
+// Returns null if the article is not found (controller responds with 404).
 async function getArticleStats(articleId) {
   if (!mongoose.isValidObjectId(articleId)) return null;
   const [stats, article] = await Promise.all([
@@ -35,8 +33,8 @@ async function getArticleStats(articleId) {
   };
 }
 
-// Same shape as getArticleStats, but every article summed together (no publish markers: one line per
-// article would be unreadable, and "before/after" only makes sense for a single article).
+// Returns combined stats for all articles in getArticleStats format.
+// Excludes publish markers and before/after comparisons.
 async function getOverallStats() {
   const buckets = await ViewStat.aggregate([
     { $group: { _id: '$bucket', count: { $sum: '$count' } } },

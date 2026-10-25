@@ -1,5 +1,4 @@
-/* Owner: member 4 - editor area (dashboard, review page, analytics) */
-
+/* Editor area styles: dashboard, review, and analytics. */
 .editor-page { max-width: 1320px; margin: 0 auto; padding: 1.25rem 1.5rem 1.5rem; }  /* same width as the header and the reporter pages */
 /* The shared heading style has a heavy underline; the editor pages use plain headings */
 .editor-page .section-title { border-bottom: 0; padding-bottom: 0; margin-bottom: 0.6rem; }

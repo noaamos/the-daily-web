@@ -1,4 +1,3 @@
-// Owner: member 4
 const mongoose = require('mongoose');
 const Article = require('../models/Article');
 const Comment = require('../models/Comment');
@@ -84,9 +83,8 @@ exports.analyticsPage = (req, res) => {
 };
 
 // GET /editor/api/articles?status=&live=1&q=&page=
-// All articles for the editor dashboard, newest activity first, plus a count per status for the filter chips.
-//   live=1: only articles that have a published version, whatever their status is now (an update may be pending or
-//           returned while the old version is still live). Used by the Impact Analytics picker.
+// Returns articles by latest activity, with counts per status.
+// live=1: includes all articles with a published version, even if updates are pending or returned (Impact Analytics).
 exports.list = async (req, res, next) => {
   try {
     // includes() compares with ===, so an array or an object (?status[$ne]=x) is rejected too

@@ -1,4 +1,3 @@
-// Owner: member 2
 const mongoose = require('mongoose');
 
 const commentSchema = new mongoose.Schema({

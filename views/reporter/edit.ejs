@@ -1,7 +1,6 @@
 <%- include('../partials/head', { styles: ['/css/reporter.css'] }) %>
 <%- include('../partials/header') %>
 <main class="reporter-page edit-page" data-article-id="<%= article._id %>" data-status="<%= article.status %>" data-saved-at="<%= article.draftSavedAt ? article.draftSavedAt.toISOString() : '' %>">
-  <!-- Owner: member 3 -->
   <p class="back-link"><a href="/reporter">חזרה לכתבות שלי</a></p>
   <div class="page-head">
     <h1 class="section-title">עריכת כתבה</h1>

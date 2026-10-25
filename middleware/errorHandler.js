@@ -1,4 +1,3 @@
-// Owner: member 2
 const logger = require('../config/logger');
 
 const isApi = (req) => req.originalUrl.includes('/api/');

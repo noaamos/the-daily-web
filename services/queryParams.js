@@ -1,6 +1,5 @@
-// Reading and checking values that arrive in the query string (?page=2&q=...). Used by the public feed, the reporter
-// list, the editor list and the user list, so that all of them accept and refuse the same things.
-// Every function either returns a clean value or throws a 400 error with a Hebrew message (see errorHandler).
+// Shared query parameter validation for feeds and user/article lists.
+// Returns sanitized values or throws HTTP 400 with a Hebrew error message.
 const { httpError } = require('../middleware/errorHandler');
 
 const MAX_PAGE = 100000; // 2 million articles at 20 per page: far more than this system will ever hold
@@ -12,8 +11,8 @@ function parsePage(value) {
   return Number(value);
 }
 
-// Search text: a string without control characters (a null character in a regular expression makes MongoDB fail),
-// trimmed and not longer than `max`. Missing = empty search.
+// Validate search text: trim, remove control characters, and enforce max length.
+// Missing input returns an empty string.
 function parseSearchText(value, max) {
   if (value === undefined) return '';
   if (typeof value !== 'string') throw httpError(400, 'טקסט החיפוש אינו תקין');

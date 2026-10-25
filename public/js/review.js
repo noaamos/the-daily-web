@@ -1,5 +1,4 @@
-// Owner: member 4
-// Vanilla JS + fetch() only. Review page actions: edit, approve, return with a note, delete.
+// Editor review page: edit, approve, return with a note, and delete via fetch().
 (function () {
   const page = document.querySelector('.review-page');
   if (!page) return;
@@ -29,8 +28,8 @@
     return data;
   }
 
-  // Run an action with its button disabled; on success show a message and reload (the page is rendered on the server)
-  // onError: optional, called with the error (the edit form uses it to write the server's reason next to the buttons)
+// Disable the button during the action; on success, show a message and reload.
+// onError: optional callback for displaying server errors.
   async function run(button, request, successMessage, after, onError) {
     button.disabled = true;
     try {
