@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<%- include('../partials/header') %>
+<%- include('../partials/header', { hideCategoryNav: true }) %>
 <main class="narrow">
   <h1>כניסת צוות</h1>
   <% if (error) { %><p class="error" role="alert"><%= error %></p><% } %>

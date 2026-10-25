@@ -1,6 +1,8 @@
 <%
   // navActive: '' = home, a category key = that category, undefined = nothing highlighted
+  // hideCategoryNav: true on the login, reporter and editor pages (the category bar belongs to the public site)
   const active = typeof navActive !== 'undefined' ? navActive : null;
+  const showCategoryNav = !(typeof hideCategoryNav !== 'undefined' && hideCategoryNav);
 %>
 <header class="site-header">
   <div class="masthead">
@@ -30,6 +32,7 @@
     </div>
   </div>
 
+  <% if (showCategoryNav) { %>
   <nav class="category-nav" aria-label="קטגוריות">
     <div class="category-nav-inner">
       <a href="/" data-category="" class="<%= active === '' ? 'active' : '' %>">ראשי</a>
@@ -38,4 +41,5 @@
       <% }) %>
     </div>
   </nav>
+  <% } %>
 </header>

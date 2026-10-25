@@ -1,5 +1,5 @@
 <%- include('../partials/head', { styles: ['/css/reporter.css'] }) %>
-<%- include('../partials/header') %>
+<%- include('../partials/header', { hideCategoryNav: true }) %>
 <main class="reporter-page edit-page" data-article-id="<%= article._id %>" data-status="<%= article.status %>" data-saved-at="<%= article.draftSavedAt ? article.draftSavedAt.toISOString() : '' %>">
   <p class="back-link"><a href="/reporter">חזרה לכתבות שלי</a></p>
   <div class="page-head">
