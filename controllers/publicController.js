@@ -119,7 +119,9 @@ exports.articlePage = async (req, res, next) => {
       .lean();
     if (!article) return notFoundPage(res);
 
-    trackVisit(article._id, req.deviceId);
+    // A HEAD request (an uptime monitor, a link preview) only asks whether the page exists: nobody reads the article,
+    // so it is not a view. Every real visit (GET), including a refresh, is counted.
+    if (req.method !== 'HEAD') trackVisit(article._id, req.deviceId);
 
     const wasUpdated = article.lastPublishedAt && article.lastPublishedAt > article.firstPublishedAt;
     const { latest, mostRead } = await sidebarNews(article._id);

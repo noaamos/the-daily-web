@@ -587,6 +587,19 @@ async function reporterTests() {
   const ghost = await ViewStat.countDocuments({ article: draftArt._id });
   await call('GET', `/articles/${draftArt._id}`);
   check('visiting a draft creates no view stats', (await ViewStat.countDocuments({ article: draftArt._id })) === ghost);
+  { // HEAD is not a visit; a normal GET from the same device is
+    const device = 'dw_device=00000000-0000-4000-8000-00000000aaaa';
+    const views = async () => (await Article.findById(target._id).lean()).viewCount;
+    const b = await views();
+    const rows = await DeviceView.countDocuments({ article: target._id });
+    const head = await call('HEAD', `/articles/${target._id}`, { cookie: device });
+    await sleep(600);
+    check('a HEAD request is answered 200 but is not counted as a view, nor marked as "read"', head.status === 200 && (await views()) === b && (await DeviceView.countDocuments({ article: target._id })) === rows, `${head.status} ${b} -> ${await views()}`);
+    await call('GET', `/articles/${target._id}`, { cookie: device });
+    await call('GET', `/articles/${target._id}`, { cookie: device });
+    await sleep(600);
+    check('the same device with normal GET requests (and a refresh) is counted as before: +2', (await views()) === b + 2, `${b} -> ${await views()}`);
+  }
   const gs = await getArticleStats(String(target._id));
   check('getArticleStats: ascending buckets', gs.buckets.every((b, i) => !i || +new Date(b.t) >= +new Date(gs.buckets[i - 1].t)));
   check('getArticleStats: null for bad/unknown id', (await getArticleStats('xyz')) === null && (await getArticleStats('64b000000000000000000000')) === null);
