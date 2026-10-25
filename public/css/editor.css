@@ -5,16 +5,7 @@
 .editor-page .section-title { border-bottom: 0; padding-bottom: 0; margin-bottom: 0.6rem; }
 .editor-intro { margin: -0.5rem 0 1.25rem; }
 
-/* ==== Status filter chips ==== */
-.status-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
-.chip {
-  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.9rem;
-  background: var(--surface); color: var(--text); border: 1px solid var(--border);
-  border-radius: 999px; font-size: 0.9rem; font-weight: 500; cursor: pointer;
-}
-.chip:hover { border-color: var(--ink); }
-.chip.active { background: var(--ink); color: var(--ink-text); border-color: var(--ink); }
-.chip-count { font-size: 0.78rem; opacity: 0.7; }
+/* Status filter chips are shared with the reporter area: see main.css */
 
 /* ==== Article list ==== */
 .article-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }

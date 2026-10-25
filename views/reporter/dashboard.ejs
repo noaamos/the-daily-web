@@ -23,6 +23,21 @@
       <button type="button" class="btn-outline" id="new-cancel">ביטול</button>
     </div>
   </form>
+
+  <div class="filter-bar">
+    <nav class="status-chips" id="status-filter" aria-label="סינון לפי מצב">
+      <button type="button" class="chip active" data-status="" aria-pressed="true">הכל <span class="chip-count" data-count="total"></span></button>
+      <button type="button" class="chip" data-status="draft" aria-pressed="false">בהכנה <span class="chip-count" data-count="draft"></span></button>
+      <button type="button" class="chip" data-status="returned" aria-pressed="false">הוחזרו לתיקונים <span class="chip-count" data-count="returned"></span></button>
+      <button type="button" class="chip" data-status="pending" aria-pressed="false">ממתינות לאישור <span class="chip-count" data-count="pending"></span></button>
+      <button type="button" class="chip" data-status="published" aria-pressed="false">פורסמו <span class="chip-count" data-count="published"></span></button>
+    </nav>
+    <label class="check-filter" title="כתבות שפורסמו ושערכתם מאז, אבל עוד לא הגשתם את השינויים לאישור">
+      <input type="checkbox" id="unsent-filter">
+      פורסמו עם שינויים שלא הוגשו <span class="chip-count" data-count="unsent"></span>
+    </label>
+  </div>
+
   <section id="my-articles" aria-live="polite">
     <ul id="article-rows" class="article-list"></ul>
     <p id="list-status" class="muted list-status">טוען...</p>

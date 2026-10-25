@@ -121,10 +121,10 @@ async function reporterTests() {
 
   // ---------------------------------------------------------------- R1. my articles
   sec('R1. Reporter: "My articles" list');
-  async function allRows(cookie) {
+  async function allRows(cookie, filter = '') { // filter: extra query string such as '&status=draft'
     const rows = []; const sizes = []; let more = true;
     for (let p = 1; more && p <= 60; p++) {
-      const r = await call('GET', `/reporter/api/articles?page=${p}`, { cookie });
+      const r = await call('GET', `/reporter/api/articles?page=${p}${filter}`, { cookie });
       rows.push(...r.body.articles); sizes.push(r.body.articles.length); more = r.body.hasMore;
     }
     return { rows, sizes };
@@ -141,7 +141,32 @@ async function reporterTests() {
   check('a note appears only on returned articles', mine1.rows.every((a) => (a.status === 'returned') === Boolean(a.editorNote)));
   check('page beyond the last is empty', (await call('GET', '/reporter/api/articles?page=999', { cookie: R1 })).body.articles.length === 0);
   for (const q of ['abc', '0', '-3', '1.5', '']) check(`page=${q || '(empty)'} -> 400`, (await call('GET', `/reporter/api/articles?page=${q}`, { cookie: R1 })).status === 400);
+  // status filter and counts (the chips on the dashboard)
+  const dbCounts = async (author) => {
+    const c = { total: await Article.countDocuments({ author }) };
+    for (const s of ['draft', 'pending', 'returned', 'published']) c[s] = await Article.countDocuments({ author, status: s });
+    return c;
+  };
+  const countsOf = async (cookie, filter = '') => (await call('GET', `/reporter/api/articles?page=1${filter}`, { cookie })).body.counts;
+  const wanted1 = await dbCounts(u1._id);
+  const got1 = await countsOf(R1);
+  check('counts: per status and total equal the database, for the reporter only', ['total', 'draft', 'pending', 'returned', 'published'].every((k) => got1[k] === wanted1[k]), JSON.stringify(got1));
+  check('counts: the states add up to the total', got1.draft + got1.pending + got1.returned + got1.published === got1.total);
+  const got2 = await countsOf(R2);
+  const wanted2 = await dbCounts(u2._id);
+  check('counts: another reporter gets his own numbers', ['total', 'draft', 'pending', 'returned', 'published'].every((k) => got2[k] === wanted2[k]));
+  for (const s of ['draft', 'pending', 'returned', 'published']) {
+    const f = await allRows(R1, `&status=${s}`);
+    check(`filter ${s}: every article of that state, all his own, none twice`, f.rows.length === wanted1[s] && f.rows.every((a) => a.status === s) && !f.rows.some((a) => mine2.rows.some((b) => b.id === a.id)) && new Set(f.rows.map((a) => a.id)).size === f.rows.length, `${f.rows.length} of ${wanted1[s]}`);
+    check(`filter ${s}: every page except the last has exactly 20 rows`, f.sizes.slice(0, -1).every((n) => n === 20));
+  }
+  check('counts do not change with the filter', JSON.stringify(await countsOf(R1, '&status=draft')) === JSON.stringify(got1));
+  for (const bad of ['status=banana', 'status=', 'status=DRAFT', 'status[$ne]=draft', 'status=draft&status=pending', 'unsent=2', 'unsent=', 'unsent=true']) {
+    check(`bad filter "${bad}" -> 400`, (await call('GET', `/reporter/api/articles?page=1&${bad}`, { cookie: R1 })).status === 400);
+  }
+  check('unsent=1 in a state without unsent changes finds nothing', (await call('GET', '/reporter/api/articles?page=1&status=draft&unsent=1', { cookie: R1 })).body.articles.length === 0);
   check('anonymous -> 401', (await call('GET', '/reporter/api/articles')).status === 401);
+  check('anonymous with a filter -> 401, editor with a filter -> 403', (await call('GET', '/reporter/api/articles?status=draft')).status === 401 && (await call('GET', '/reporter/api/articles?status=draft', { cookie: E })).status === 403);
   check('editor -> 403', (await call('GET', '/reporter/api/articles', { cookie: E })).status === 403);
   check('dashboard page: anonymous is sent to the login', (await call('GET', '/reporter')).status === 302);
   check('dashboard page: reporter 200, editor 403', (await call('GET', '/reporter', { cookie: R1 })).status === 200 && (await call('GET', '/reporter', { cookie: E })).status === 403);
@@ -329,6 +354,13 @@ async function reporterTests() {
   check('the public still sees version 1', (await live()).includes('גוף גרסה 1') && !(await live()).includes('גוף גרסה 2'));
   prow = await rowOf(R1, P);
   check('list: "unsent changes"', prow.unsentChanges === true && prow.status === 'published');
+  // the "unsent changes" filter
+  const unsentRows = await allRows(R1, '&unsent=1');
+  const unsentCount = (await countsOf(R1)).unsent;
+  check('unsent filter: lists this article, and only articles that really have unsent changes', unsentRows.rows.some((a) => a.id === P) && unsentRows.rows.every((a) => a.unsentChanges === true && a.status === 'published'));
+  check('unsent filter: the count equals the number of rows', unsentCount === unsentRows.rows.length && unsentCount >= 1, `${unsentCount} vs ${unsentRows.rows.length}`);
+  check('unsent filter works together with the "published" filter', (await allRows(R1, '&status=published&unsent=1')).rows.length === unsentRows.rows.length);
+  check('unsent filter: another reporter does not see this article', !(await allRows(R2, '&unsent=1')).rows.some((a) => a.id === P));
   const lockSnap = await snap(P);
   check('changing the category of a published article -> 400, nothing changed', (await save(R1, P, { title: `${T} גרסה 2`, body: 'גוף גרסה 2', category: 'sports' })).status === 400 && (await snap(P)) === lockSnap);
   check('sending the same category is fine and the category stays', (await save(R1, P, { title: `${T} גרסה 2`, summary: 'תקציר 2', body: 'גוף גרסה 2', category: 'health' })).status === 200 && (await db(P)).category === 'health');
@@ -341,6 +373,7 @@ async function reporterTests() {
   check('the draft is the published version again, published untouched', reset.draft.title === reset.published.title && reset.draft.body === 'גוף גרסה 1' && reset.published.body === 'גוף גרסה 1');
   prow = await rowOf(R1, P);
   check('list: no unsent changes after cancelling', prow.unsentChanges === false);
+  check('unsent filter: the article and one count are gone after cancelling', !(await allRows(R1, '&unsent=1')).rows.some((a) => a.id === P) && (await countsOf(R1)).unsent === unsentCount - 1);
   check('submitting an update without changes -> 400, status unchanged', (await submit(R1, P)).status === 400 && (await db(P)).status === 'published');
   check('the same refusal for a reporter who never edited (no false update)', (await db(P)).publishHistory.length === 1);
 

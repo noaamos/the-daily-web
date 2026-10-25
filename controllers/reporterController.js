@@ -25,6 +25,9 @@ function differsFromPublished(article) {
 // so the list does not have to load the text of every article)
 const fieldDiffers = (key) => ({ $ne: [{ $ifNull: [`$draft.${key}`, ''] }, { $ifNull: [`$published.${key}`, ''] }] });
 const hasPublishedVersion = { $eq: [{ $type: '$published' }, 'object'] };
+// a published article whose draft differs from the published version in any field (changes that were not submitted yet)
+const hasUnsentChanges = { $and: [{ $eq: ['$status', STATUS.PUBLISHED] }, hasPublishedVersion, { $or: CONTENT_KEYS.map(fieldDiffers) }] };
+const STATUSES = Object.values(STATUS);
 
 // Content fields of the draft: Hebrew name (for error messages) and maximum length
 const DRAFT_FIELDS = {
@@ -109,32 +112,53 @@ exports.editPage = async (req, res, next) => {
   }
 };
 
-// GET /reporter/api/articles?page=
-// The logged-in reporter's own articles, newest activity first. Returns { articles, hasMore }.
+// GET /reporter/api/articles?page=&status=&unsent=1
+// The logged-in reporter's own articles, newest activity first. Returns { articles, hasMore, counts }.
+//   status: only articles in that state (draft | pending | returned | published); anything else is a 400
+//   unsent=1: only published articles whose draft has changes that were not submitted yet
+//   counts: how many articles the reporter has in each state, plus how many have unsent changes.
+//           The filters do not change them: they are the numbers shown on the filter chips.
 exports.listMine = async (req, res, next) => {
   try {
     const page = req.query.page === undefined ? 1 : Number(req.query.page);
     if (!Number.isInteger(page) || page < 1) throw httpError(400, 'מספר עמוד לא תקין');
+    const { status, unsent } = req.query;
+    // includes() compares with ===, so an array or an object (?status[$ne]=x) is rejected too
+    if (status !== undefined && !STATUSES.includes(status)) throw httpError(400, 'מצב כתבה לא תקין');
+    if (unsent !== undefined && unsent !== '1') throw httpError(400, 'ערך הסינון לא תקין');
 
-    const docs = await Article.aggregate([
-      { $match: { author: req.user._id } },
-      { $sort: { updatedAt: -1, _id: -1 } },
-      { $skip: (page - 1) * PAGE_SIZE },
-      { $limit: PAGE_SIZE + 1 }, // one extra row tells us whether there is another page
-      {
-        $project: {
-          status: 1, category: 1, 'draft.title': 1, editorNote: 1, updatedAt: 1,
-          hasPublished: hasPublishedVersion,
-          // a published article whose draft differs from the published version in any field
-          unsent: { $and: [{ $eq: ['$status', STATUS.PUBLISHED] }, hasPublishedVersion, { $or: CONTENT_KEYS.map(fieldDiffers) }] },
+    const match = { author: req.user._id };
+    if (status) match.status = status;
+    if (unsent) match.$expr = hasUnsentChanges;
+
+    const [docs, grouped] = await Promise.all([
+      Article.aggregate([
+        { $match: match },
+        { $sort: { updatedAt: -1, _id: -1 } },
+        { $skip: (page - 1) * PAGE_SIZE },
+        { $limit: PAGE_SIZE + 1 }, // one extra row tells us whether there is another page
+        {
+          $project: {
+            status: 1, category: 1, 'draft.title': 1, editorNote: 1, updatedAt: 1,
+            hasPublished: hasPublishedVersion,
+            unsent: hasUnsentChanges,
+          },
         },
-      },
+      ]),
+      Article.aggregate([
+        { $match: { author: req.user._id } },
+        { $group: { _id: '$status', n: { $sum: 1 }, unsent: { $sum: { $cond: [hasUnsentChanges, 1, 0] } } } },
+      ]),
     ]);
+
+    const counts = { total: 0, unsent: 0 };
+    STATUSES.forEach((s) => { counts[s] = 0; });
+    grouped.forEach((g) => { counts[g._id] = g.n; counts.total += g.n; counts.unsent += g.unsent; });
 
     const hasMore = docs.length > PAGE_SIZE;
     const articles = docs.slice(0, PAGE_SIZE).map(toRow);
 
-    res.json({ articles, hasMore });
+    res.json({ articles, hasMore, counts });
   } catch (err) {
     next(err);
   }
