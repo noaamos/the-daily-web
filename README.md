@@ -33,13 +33,13 @@ npm test                  # בדיקות אוטומטיות (מריץ seed, ול
 
 ```
 app.js                  נקודת הכניסה: הגדרות, sessions, חיבור ה-routes
-config/                 חיבור ל-DB, לוגר, קבועים משותפים (סטטוסים, קטגוריות)
+config/                 חיבור ל-DB, לוגר, קבועים משותפים (סטטוסים, קטגוריות), תפיסת שגיאות שלא נתפסו (processHandlers.js)
 models/                 סכמות Mongoose
   Article.js            משותף: draft + published (ראו הסבר למטה)
   User.js  Comment.js  ViewStat.js  DeviceView.js
 controllers/            הלוגיקה של כל אזור
 routes/                 קובץ routes לכל אזור
-middleware/             הרשאות, מזהה מכשיר, הגבלת תגובות, טיפול בשגיאות
+middleware/             הרשאות, מזהה מכשיר, הגבלת תגובות, הגבלת ניסיונות התחברות, כותרות אבטחה, טיפול בשגיאות
 services/               לוגיקה משותפת: מעברי מצב, כלל קישור התמונה, בדיקת פרמטרים מהכתובת (queryParams.js), צפיות, מזג אוויר
 views/                  תבניות EJS, תיקייה לכל אזור + partials משותפים
 public/                 CSS ו-JS של צד הלקוח (css/main.css: מערכת העיצוב המשותפת; vendor/chart.umd.js: ספריית Chart.js 4.4.1 לגרף)
@@ -54,7 +54,7 @@ logs/                   קובץ לוג (לא עולה לגיט)
 | חבר צוות | אזור | קבצים |
 |---|---|---|
 | 1 | אתר ציבורי ומזג אוויר | `routes/public.js`, `controllers/publicController.js`, `services/weatherService.js`, `models/DeviceView.js`, `views/public/*`, `views/partials/sidebar*.ejs`, `public/js/feed.js`, `public/js/carousel.js`, `public/js/weather.js`, `public/css/public.css` |
-| 2 | הזדהות, הרשאות, תגובות, משתמשים, seed | `routes/auth.js`, `routes/comments.js`, `routes/users.js`, `controllers/auth\|comment\|userController.js`, `middleware/*`, `models/User.js`, `models/Comment.js`, `views/auth/*`, `public/js/comments.js`, `public/js/users.js`, `public/css/users.css`, `seed/*` |
+| 2 | הזדהות, הרשאות, תגובות, משתמשים, seed | `routes/auth.js`, `routes/comments.js`, `routes/users.js`, `controllers/auth\|comment\|userController.js`, `middleware/*`, `config/processHandlers.js`, `models/User.js`, `models/Comment.js`, `views/auth/*`, `public/js/comments.js`, `public/js/users.js`, `public/css/users.css`, `seed/*` |
 | 3 | אזור כתב | `routes/reporter.js`, `controllers/reporterController.js`, `services/articleService.js`, `services/imageLink.js`, `views/reporter/*`, `public/js/reporter.js`, `public/js/reporter-edit.js`, `public/js/image-preview.js`, `public/js/image-link.js`, `public/css/reporter.css` |
 | 4 | אזור עורך, ספירת צפיות ו-Analytics, בדיקות | `routes/editor.js`, `controllers/editorController.js`, `services/viewService.js`, `models/ViewStat.js`, `views/editor/*`, `public/js/editor.js`, `public/js/review.js`, `public/js/analytics.js`, `public/css/editor.css`, `seed/seedViews.js`, `seed/seedUpdates.js`, `tests/*` |
 
@@ -165,6 +165,9 @@ git push -u origin feature/<אזור>-<מה>
 ### הזדהות, הרשאות, תגובות וניהול משתמשים (חבר 2)
 
 - **התחברות** (`/auth/login`): שם משתמש וסיסמה לכתבים ולעורכים. הסיסמאות נשמרות רק כ-hash של bcrypt (10 סיבובים) ולא ניתן לשחזר מהן את המקור. הודעת השגיאה זהה כששם המשתמש לא קיים וכשהסיסמה שגויה. אחרי התחברות מוחלף מזהה ה-session (מונע session fixation), כתב מועבר ל-`/reporter` ועורך ל-`/editor`.
+- **הגבלת ניסיונות התחברות** (`middleware/loginThrottle.js`): אחרי 5 סיסמאות שגויות לאותו משתמש מאותה כתובת IP בתוך 10 דקות, וגם אחרי 50 סיסמאות שגויות מאותה כתובת לכל המשתמשים, ההתחברות נחסמת (429 עם הודעה בעברית ו-`Retry-After`), וגם הסיסמה הנכונה נדחית עד שהזמן עובר. הספירה לפי משתמש וכתובת יחד: זר לא יכול לנעול את העורך מחוץ למערכת, כי העורך מתחבר מכתובת אחרת. המונים בזיכרון השרת, והפעלה מחדש מאפסת אותם.
+- **עוגיית ה-session** מוגדרת `HttpOnly` ו-`SameSite=Lax`: הדפדפן לא שולח אותה בבקשה שמגיעה מאתר אחר (הגנה מפני CSRF). השרת לא מכריז על Express (`X-Powered-By` כבוי) ושולח כותרות `nosniff`, `X-Frame-Options: DENY` ו-`Referrer-Policy` (`middleware/securityHeaders.js`).
+- **שינוי סיסמה** מנתק את כל ההתחברויות הישנות של המשתמש (נמחקות מאוסף ה-sessions). עורך ששינה את הסיסמה של עצמו נשאר מחובר במכשיר שבו עשה זאת.
 - **Sessions**: נשמרים ב-MongoDB (`connect-mongo`, 7 ימים), ולכן אחרי הפעלה מחדש של השרת משתמש מחובר ממשיך לעבוד בלי להתחבר שוב.
 - **הרשאות בצד השרת בלבד**: `middleware/auth.js` טוען את המשתמש מה-session (לא ממה שהדפדפן שולח), ו-`requireRole()` מגן על כל אזור. משתמש לא מחובר מקבל 401 (או הפניה להתחברות בדפים), ותפקיד לא מתאים מקבל 403. הסתרת כפתורים בצד הלקוח היא רק נוחות.
 - **תגובות** (`public/js/comments.js`): הרשימה נטענת ב-Ajax, ותגובה חדשה מתווספת מיד לסוף הרשימה בלי לטעון אותה מחדש. תגובות מותרות רק על כתבות שפורסמו, שם עד 50 תווים ותגובה עד 1000, והתצוגה משתמשת ב-`textContent`.
@@ -172,6 +175,11 @@ git push -u origin feature/<אזור>-<מה>
 - **עורך על תגובות**: עורך רואה בעמוד הכתבה כפתורי עריכה ומחיקה לכל תגובה (`PUT /api/comments/:id`, `DELETE /api/comments/:id`, עורך בלבד).
 - **ניהול משתמשים** (`/editor/users`, `/api/users`, עורך בלבד): חיפוש, יצירה, עריכה ומחיקה. שם משתמש 3 עד 30 תווים באנגלית, סיסמה לפחות 6 תווים, ושם משתמש כפול מחזיר 409. אי אפשר למחוק את המשתמש המחובר או משתמש שיש לו כתבות, ואי אפשר להוריד לעצמך את תפקיד העורך.
 - **נתוני דמה**: `seed/seed.js` יוצר עורך אחד, שלושה כתבים ו-500 כתבות בכל המצבים והקטגוריות. התוכן לקוח מ-44 כתבות חדשות קצרות (`seed/newsArticles.js`) שחוזרות על עצמן, ולכן כותרות מופיעות יותר מפעם אחת, ו-`seedComments.js` מוסיף 90 תגובות ל-30 הכתבות החדשות ביותר.
+
+### יציבות וטיפול בשגיאות
+
+- כל handler עוטף את הלוגיקה ב-`try/catch` ומעביר שגיאה ל-`middleware/errorHandler.js`, שמחזיר הודעה בעברית (עמוד שגיאה או JSON, בלי stack trace) ורושם בלוג. שגיאות פנימיות של Express באנגלית (כמו כתובת עם `%` שבור) מתורגמות להודעה בעברית.
+- רשת ביטחון אחרונה (`config/processHandlers.js`): **promise שנכשל ואף אחד לא טיפל בו** (`unhandledRejection`) נרשם בלוג והשרת ממשיך לעבוד. **חריגה שלא נתפסה** (`uncaughtException`) נרשמת בלוג (כתיבה סינכרונית, כדי שהשורה האחרונה לא תאבד) והתהליך נסגר בקוד 1, כי מצבו אינו ידוע. בפיתוח `npm run dev` מפעיל אותו מחדש, ובפריסה אמיתית צריך מנהל תהליכים (כמו pm2).
 
 ### עיצוב (מערכת עיצוב משותפת)
 

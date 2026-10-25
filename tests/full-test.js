@@ -744,6 +744,51 @@ async function reporterTests() {
     await clearRecent();
   }
 
+  // ---------------------------------------------------------------- E5. security hardening
+  sec('E5. Security hardening (headers, session cookie, login throttle, sessions after a password change)');
+  {
+    const home = await call('GET', '/');
+    check('the server does not announce Express (no X-Powered-By)', home.headers.get('x-powered-by') === null);
+    check('security headers are sent: nosniff, no framing, referrer policy', home.headers.get('x-content-type-options') === 'nosniff' && home.headers.get('x-frame-options') === 'DENY' && Boolean(home.headers.get('referrer-policy')));
+    check('security headers are also on API answers and error pages', (await call('GET', '/api/nothing')).headers.get('x-content-type-options') === 'nosniff' && (await call('GET', '/no/such')).headers.get('x-frame-options') === 'DENY');
+    const sessionCookie = ed.setCookie.find((c) => c.startsWith('connect.sid')) || '';
+    check('the session cookie is HttpOnly and SameSite=Lax', /HttpOnly/i.test(sessionCookie) && /SameSite=Lax/i.test(sessionCookie), sessionCookie.replace(/connect\.sid=[^;]+/, 'connect.sid=...'));
+
+    // ---- login throttle: 5 wrong passwords per account and address
+    const mkUser = (username, role = 'reporter') => call('POST', '/api/users', { cookie: E, json: { username, password: 'secret1', displayName: 'בדיקת אבטחה', role } });
+    const rawLogin = (username, password) => fetch(BASE + '/auth/login', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ username, password }).toString() });
+    const victim = (await mkUser('throttle-victim')).body;
+    const wrong = [];
+    for (let i = 0; i < 5; i++) wrong.push((await rawLogin('throttle-victim', 'wrong' + i)).status);
+    check('5 wrong passwords in a row: all answered 401', wrong.join() === '401,401,401,401,401', wrong.join());
+    const sixth = await rawLogin('throttle-victim', 'wrong5');
+    check('the 6th attempt is refused (429) with a Hebrew message and Retry-After', sixth.status === 429 && Number(sixth.headers.get('retry-after')) > 0 && /יותר מדי ניסיונות/.test(await sixth.text()), sixth.status);
+    const rightButBlocked = await rawLogin('throttle-victim', 'secret1');
+    check('even the RIGHT password is refused while the account is blocked', rightButBlocked.status === 429 && !rightButBlocked.headers.getSetCookie().some((c) => c.startsWith('connect.sid')), rightButBlocked.status);
+    check('other accounts are not affected (the editor can still log in)', (await rawLogin('editor', 'editor123')).status === 302);
+    check('an unknown user name is a plain 401 (it does not reveal that the account is blocked or missing)', (await rawLogin('no-such-user-xyz', 'x')).status === 401);
+    await call('DELETE', `/api/users/${victim._id}`, { cookie: E });
+
+    // ---- a password change ends the old logins
+    const sess = (await mkUser('sess-reporter')).body;
+    const old = await login('sess-reporter', 'secret1');
+    check('the new user can log in and use the reporter area', (await call('GET', '/reporter/api/articles', { cookie: old.cookie })).status === 200);
+    check('the editor changes their password -> 200', (await call('PUT', `/api/users/${sess._id}`, { cookie: E, json: { password: 'newsecret1' } })).status === 200);
+    check('the login made with the OLD password no longer works (401)', (await call('GET', '/reporter/api/articles', { cookie: old.cookie })).status === 401);
+    const fresh = await login('sess-reporter', 'newsecret1');
+    check('logging in with the new password works', fresh.status === 302 && (await call('GET', '/reporter/api/articles', { cookie: fresh.cookie })).status === 200);
+    check('changing something else (display name) keeps the logins', (await call('PUT', `/api/users/${sess._id}`, { cookie: E, json: { displayName: 'שם חדש' } })).status === 200 && (await call('GET', '/reporter/api/articles', { cookie: fresh.cookie })).status === 200);
+    // an editor who changes their OWN password stays logged in on the device they use, other devices are logged out
+    const ed2 = (await mkUser('sess-editor', 'editor')).body;
+    const here = await login('sess-editor', 'secret1');
+    const elsewhere = await login('sess-editor', 'secret1');
+    check('own password change -> 200', (await call('PUT', `/api/users/${ed2._id}`, { cookie: here.cookie, json: { password: 'newsecret2' } })).status === 200);
+    check('the device that changed the password stays logged in', (await call('GET', '/editor/api/articles', { cookie: here.cookie })).status === 200);
+    check('the other device is logged out', (await call('GET', '/editor/api/articles', { cookie: elsewhere.cookie })).status === 401);
+    await call('DELETE', `/api/users/${sess._id}`, { cookie: E });
+    await call('DELETE', `/api/users/${ed2._id}`, { cookie: E });
+  }
+
   // ---------------------------------------------------------------- F. editor list API
   sec('F. Editor list API');
   const L = await call('GET', '/editor/api/articles', { cookie: E });
@@ -980,6 +1025,19 @@ async function reporterTests() {
   check('log records editor actions', log.some((l) => /Editor editor published article/.test(l)) && log.some((l) => /returned article/.test(l)) && log.some((l) => /deleted article/.test(l)));
   check('log records blocked access', log.some((l) => /Blocked/.test(l)));
   console.log(`   ${log.length} log lines, ${errs.length} unexpected errors`);
+
+  // ---------------------------------------------------------------- M. process safety net (config/processHandlers.js)
+  // (after L on purpose: the two small programs below write ERROR / FATAL lines to the same log file on purpose)
+  sec('M. Process safety net: unhandled rejection is logged, uncaught exception is logged and ends the process');
+  check('app.js installs the safety net', /require\('\.\/config\/processHandlers'\)\.install\(\)/.test(fs.readFileSync(path.join(PROJECT, 'app.js'), 'utf8')));
+  const runChild = (code) => spawnSync('node', ['-e', code], { cwd: PROJECT, encoding: 'utf8', timeout: 15000 });
+  const logNow = () => fs.readFileSync(LOG).toString('utf8');
+  const rej = runChild("require('./config/processHandlers').install(); Promise.reject(new Error('rejection-test-marker')); setTimeout(() => { console.log('still alive'); process.exit(0); }, 400);");
+  check('an unhandled promise rejection does not stop the process', rej.status === 0 && rej.stdout.includes('still alive'), `${rej.status} ${rej.stderr.slice(0, 120)}`);
+  check('...and is written to the log', /ERROR Unhandled promise rejection: Error: rejection-test-marker/.test(logNow()));
+  const exc = runChild("require('./config/processHandlers').install(); setTimeout(() => { throw new Error('exception-test-marker'); }, 50); setTimeout(() => console.log('must not print'), 600);");
+  check('an uncaught exception ends the process with exit code 1', exc.status === 1 && !exc.stdout.includes('must not print'), `${exc.status}`);
+  check('...after the last line was written to the log (FATAL)', /FATAL Uncaught exception, the server is shutting down: Error: exception-test-marker/.test(logNow()));
 
   await stopServer();
   await mongoose.disconnect();

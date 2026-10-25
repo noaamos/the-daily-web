@@ -1,6 +1,7 @@
 // Owner: member 2
 const User = require('../models/User');
 const logger = require('../config/logger');
+const loginThrottle = require('../middleware/loginThrottle');
 const { ROLES } = require('../config/constants');
 
 // Where each role lands after logging in
@@ -19,8 +20,17 @@ exports.login = async (req, res, next) => {
   const username = String(req.body.username || '').trim().toLowerCase();
   const password = String(req.body.password || '');
 
+  // Too many wrong passwords from this address: refuse before even looking at the password
+  const wait = loginThrottle.blockedFor(req.ip, username);
+  if (wait) {
+    logger.warn(`Login blocked (too many wrong passwords) for username "${username}" (ip ${req.ip})`);
+    res.set('Retry-After', String(wait));
+    return res.status(429).render('auth/login', { title: 'התחברות', error: `יותר מדי ניסיונות התחברות שגויים. נסו שוב בעוד ${Math.ceil(wait / 60)} דקות.` });
+  }
+
   // Same message for "no such user" and "wrong password" - don't reveal which usernames exist
   const failed = () => {
+    loginThrottle.recordFailure(req.ip, username);
     logger.warn(`Login failed for username "${username}" (ip ${req.ip})`);
     res.status(401).render('auth/login', { title: 'התחברות', error: 'שם משתמש או סיסמה שגויים' });
   };
@@ -30,6 +40,8 @@ exports.login = async (req, res, next) => {
   try {
     const user = await User.findOne({ username });
     if (!user || !(await user.checkPassword(password))) return failed();
+
+    loginThrottle.recordSuccess(req.ip, username);
 
     // New session id after login (prevents session fixation), then store only the user id in it
     req.session.regenerate((err) => {

@@ -38,6 +38,15 @@ function checkRole(value) {
   return value;
 }
 
+// Logs a user out everywhere: deletes their sessions from the session store (collection "sessions", made by connect-mongo,
+// where each session is saved as a JSON text that contains the user id). `keepSessionId`: the session to leave alone.
+async function endSessionsOf(userId, keepSessionId) {
+  const filter = { session: { $regex: `"userId":"${userId}"` } };
+  if (keepSessionId) filter._id = { $ne: keepSessionId };
+  const { deletedCount } = await mongoose.connection.collection('sessions').deleteMany(filter);
+  return deletedCount;
+}
+
 async function findUserOr404(id) {
   if (!mongoose.isValidObjectId(id)) throw httpError(400, 'מזהה משתמש לא תקין');
   const user = await User.findById(id);
@@ -98,6 +107,12 @@ exports.update = async (req, res, next) => {
     }
 
     await user.save(); // duplicate username -> 11000 -> 409 in errorHandler
+    if (req.body.password !== undefined) {
+      // A new password must end the logins made with the old one (someone who knew it stays logged in otherwise).
+      // The editor who changed their OWN password keeps the session they are using.
+      const ended = await endSessionsOf(user._id, isSelf ? req.sessionID : null);
+      logger.info(`Password of ${user.username} changed by ${req.user.username}: ${ended} other session(s) ended`);
+    }
     logger.info(`User updated: ${user.username} by ${req.user.username}`);
     res.json(toPublic(user));
   } catch (err) {
