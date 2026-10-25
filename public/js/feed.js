@@ -14,7 +14,6 @@
     sort: document.getElementById('sort'),
   };
   const frontEl = document.getElementById('front');
-  const latestEl = document.getElementById('front-latest'); // sidebar "latest news", shown and hidden together with the front page
   const feedTitle = document.getElementById('feed-title');
   const navLinks = document.querySelectorAll('.category-nav a[data-category]');
 
@@ -113,12 +112,11 @@
     return Promise.race([Promise.all(loaded), new Promise((done) => setTimeout(done, ms))]);
   }
 
-  // The front page section (and the sidebar "latest news") is hidden while a search / filter is active.
+  // The front page section is hidden while a search / filter is active (the sidebar boxes always stay).
   // It changes together with the cards, so a new search switches the page in one step instead of in stages.
   function applyFrontVisibility() {
     if (state.hideFront === undefined) return; // nothing was searched yet: keep what the server rendered
     if (frontEl) frontEl.hidden = state.hideFront;
-    if (latestEl) latestEl.hidden = state.hideFront;
   }
 
   async function loadNextPage() {

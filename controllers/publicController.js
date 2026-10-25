@@ -34,8 +34,16 @@ function toCard(a) {
   };
 }
 
-function findCards(sort, limit) {
-  return Article.find(PUBLISHED).sort(sort).limit(limit).select(CARD_FIELDS).populate('author', 'displayName').lean();
+function findCards(sort, limit, filter = PUBLISHED) {
+  return Article.find(filter).sort(sort).limit(limit).select(CARD_FIELDS).populate('author', 'displayName').lean();
+}
+
+// "Most read" and "latest news" boxes of the article page's sidebar (the home page builds its own, see homePage).
+// The article being read is left out of both, so it never recommends itself.
+async function sidebarNews(articleId) {
+  const others = { ...PUBLISHED, _id: { $ne: articleId } };
+  const [latest, mostRead] = await Promise.all([findCards(SORTS.date, 4, others), findCards(SORTS.popular, 5, others)]);
+  return { latest: latest.map(toCard), mostRead: mostRead.map(toCard) };
 }
 
 // Home page. The "front page" section (carousel, medium cards, picks, latest, most read) is rendered on the server;
@@ -109,7 +117,10 @@ exports.articlePage = async (req, res, next) => {
     trackVisit(article._id, req.deviceId);
 
     const wasUpdated = article.lastPublishedAt && article.lastPublishedAt > article.firstPublishedAt;
+    const { latest, mostRead } = await sidebarNews(article._id);
     res.render('public/article', {
+      latest,
+      mostRead,
       title: article.published.title + ' | The Daily Web',
       description: article.published.summary,
       image: article.published.imageUrl,

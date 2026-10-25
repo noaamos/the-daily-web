@@ -77,6 +77,12 @@
 /* The sidebar on the home page is taller than the screen, so it scrolls with the page instead of sticking */
 .sidebar-tall { position: static; }
 
+/* Article page, narrow screens: the news boxes come after the article and its comments, not above them
+   (main.css puts the sidebar boxes first because on the home page they belong to the front page) */
+@media (max-width: 900px) {
+  .layout > .sidebar.sidebar-after > :is(.trending, .front-latest) { order: 4; }
+}
+
 /* ---- Strip of picks: row of image cards (same look as the feed cards) ---- */
 .front-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--gap); }
 .front-strip::before {

@@ -112,33 +112,7 @@
   <!-- Sidebar starts at the top of the page: weather, then the most read articles, then the latest news -->
   <aside class="sidebar sidebar-tall">
     <%- include('../partials/weather') %>
-    <% if (front.mostRead.length) { %>
-    <section class="trending" aria-labelledby="trending-title">
-      <h2 id="trending-title">הכי נקראות</h2>
-      <% front.mostRead.forEach((a, i) => { %>
-        <a href="/articles/<%= a.id %>" class="trend-item" data-category="<%= a.category %>">
-          <span class="trend-rank"><%= i + 1 %></span>
-          <span class="trend-text">
-            <span class="cat-label"><%= a.categoryLabel %></span>
-            <span class="list-title"><%= a.title %></span>
-          </span>
-        </a>
-      <% }) %>
-    </section>
-    <% } %>
-    <% if (front.featured && front.latest.length) { %>
-    <!-- Hidden together with #front while a search / filter is active (feed.js) -->
-    <section id="front-latest" class="front-latest" aria-labelledby="latest-title" <%= showFront ? '' : 'hidden' %>>
-      <h2 class="section-label" id="latest-title">חדשות אחרונות</h2>
-      <% front.latest.forEach((a) => { %>
-        <a href="/articles/<%= a.id %>" class="list-item" data-category="<%= a.category %>">
-          <span class="cat-label"><%= a.categoryLabel %></span>
-          <span class="list-title"><%= a.title %></span>
-          <time class="item-meta" datetime="<%= iso(a.publishedAt) %>" data-relative><%= fullDate(a.publishedAt) %></time>
-        </a>
-      <% }) %>
-    </section>
-    <% } %>
+    <%- include('../partials/sidebar-news', { mostRead: front.mostRead, latest: front.latest }) %>
   </aside>
 </div>
 <script src="/js/feed.js" defer></script>

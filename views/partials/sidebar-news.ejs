@@ -1,0 +1,32 @@
+<%
+  // The "most read" and "latest news" boxes of the sidebar - shared by the home page and the article page.
+  // On the home page feed.js replaces the full date with "לפני 3 שעות" for recent articles (data-relative)
+  const fullDate = (d) => new Date(d).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
+  const iso = (d) => new Date(d).toISOString();
+%>
+<% if (mostRead.length) { %>
+<section class="trending" aria-labelledby="trending-title">
+  <h2 id="trending-title">הכי נקראות</h2>
+  <% mostRead.forEach((a, i) => { %>
+    <a href="/articles/<%= a.id %>" class="trend-item" data-category="<%= a.category %>">
+      <span class="trend-rank"><%= i + 1 %></span>
+      <span class="trend-text">
+        <span class="cat-label"><%= a.categoryLabel %></span>
+        <span class="list-title"><%= a.title %></span>
+      </span>
+    </a>
+  <% }) %>
+</section>
+<% } %>
+<% if (latest.length) { %>
+<section class="front-latest" aria-labelledby="latest-title">
+  <h2 class="section-label" id="latest-title">חדשות אחרונות</h2>
+  <% latest.forEach((a) => { %>
+    <a href="/articles/<%= a.id %>" class="list-item" data-category="<%= a.category %>">
+      <span class="cat-label"><%= a.categoryLabel %></span>
+      <span class="list-title"><%= a.title %></span>
+      <time class="item-meta" datetime="<%= iso(a.publishedAt) %>" data-relative><%= fullDate(a.publishedAt) %></time>
+    </a>
+  <% }) %>
+</section>
+<% } %>
